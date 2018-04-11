@@ -33,38 +33,44 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define CONFIG_H_
 
 #include "esp32_can.h"
+#include <WiFi.h>
 
-//buffer size for SDCard - Sending canbus data to the card. Still allocated even for GEVCU but unused in that case
+//buffer size for SDCard - Sending canbus data to the card.
 //This is a large buffer but the sketch may as well use up a lot of RAM. It's there.
 //This value is picked up by the SD card library and not directly used in the GVRET code.
 #define BUF_SIZE    512
 
 //size to use for buffering writes to the USB bulk endpoint
 //This is, however, directly used.
-#define SER_BUFF_SIZE       4096
+#define SER_BUFF_SIZE       512
 
-//maximum number of microseconds between flushes to the USB port.
-//The host should be polling every 1ms or so and so this time should be a small multiple of that
-#define SER_BUFF_FLUSH_INTERVAL 2000
+//Buffer for CAN frames when sending over wifi. This allows us to build up a multi-frame packet that goes
+//over the air all at once. This is much more efficient than trying to send a new TCP/IP packet for each and every
+//frame. It delays frames from getting to the other side a bit but that's life.
+#define WIFI_BUFF_SIZE      1024
+
+//Number of microseconds between hard flushes of the serial buffer (if not in wifi mode) or the wifi buffer (if in wifi mode)
+//This keeps the latency more consistent. Otherwise the buffer could partially fill and never send.
+#define SER_BUFF_FLUSH_INTERVAL 5000
 
 #define CFG_BUILD_NUM   345
-#define CFG_VERSION "ESP32RET Alpha Mar 24 2018"
+#define CFG_VERSION "ESP32RET Alpha Apr 10 2018"
 #define EEPROM_ADDR     0x50
-#define EEPROM_VER      0x20
+#define EEPROM_VER      0x21
 
 #define MARK_LIMIT  6   //# of our analog input pins to use for marking. Defaults to all of them. Send voltage to pin to trigger it
 
 #define NUM_ANALOG  NUM_ANALOG_INPUTS   // we get the number of analogue inputs from variant.h
-#define NUM_DIGITAL 6   // Number of digital inputs on the M2 (sudo inputs/Analogue inputs)
-#define NUM_OUTPUT  6   // Number of digital outputs on the M2
+#define NUM_DIGITAL 6   // Not currently using digital pins on the ESP32
+#define NUM_OUTPUT  6   // Ditto
 
 #define NUM_BUSES   2   //number of buses possible on this hardware - CAN0, CAN1
 
-//Number of times a frame would have to be sent or received to actually toggle the LED
-//This number thus slows down the blinking quite a bit - Useful to make it easier to see
-//what is going on based on the LEDs.
-//Applies just to RX and TX leds
-#define BLINK_SLOWNESS     32  // default = 32
+//It's not even used on this hardware currently. But, slows down the blinks to make them more visible
+#define BLINK_SLOWNESS  100 
+
+//How many devices to allow to connect to our WiFi telnet port?
+#define MAX_CLIENTS 1
 
 struct FILTER {  //should be 10 bytes
     uint32_t id;
@@ -80,7 +86,7 @@ enum FILEOUTPUTTYPE {
     CRTD = 3
 };
 
-struct EEPROMSettings { //Must stay under 256
+struct EEPROMSettings {
     uint8_t version;
 
     uint32_t CAN0Speed;
@@ -106,6 +112,11 @@ struct EEPROMSettings { //Must stay under 256
 
     boolean CAN0ListenOnly; //if true we don't allow any messing with the bus but rather just passively monitor.
     boolean CAN1ListenOnly;
+
+    //if we're using WiFi then output to serial is disabled (it's far too slow to keep up)  
+    uint8_t wifiMode; //0 = don't use wifi, 1 = connect to an AP, 2 = Create an AP
+    uint8_t SSID[32];     //null terminated string for the SSID
+    uint8_t WPA2Key[64]; //Null terminated string for the key. Can be a passphase or the actual key
 };
 
 struct DigitalCANToggleSettings { //16 bytes
@@ -151,6 +162,8 @@ struct SystemSettings {
     int lawicelPollCounter;
     boolean lawicelBusReception[NUM_BUSES]; //does user want to see messages from this bus?
     int8_t numBuses; //number of buses this hardware currently supports.
+    WiFiClient clientNodes[MAX_CLIENTS];
+    boolean isWifiConnected;
 };
 
 extern EEPROMSettings settings;

@@ -84,6 +84,8 @@ void SerialConsole::printMenu()
 
     Logger::console("CAN1EN=%i - Enable/Disable CAN1 (0 = Disable, 1 = Enable)", settings.CAN1_Enabled);
     Logger::console("CAN1SPEED=%i - Set speed of CAN1 in baud (125000, 250000, etc)", settings.CAN1Speed);
+    Logger::console("CAN1FDSPEED=%i - Set speed of CAN1 FD Data (1000000 - 8000000)", settings.CAN1FDSpeed);
+    Logger::console("CAN1FDMODE=%i - Set whether to use CAN-FD Mode (0 = FD Off, 1 = Use FD Mode)", settings.CAN1_FDMode);
     Logger::console("CAN1LISTENONLY=%i - Enable/Disable Listen Only Mode (0 = Dis, 1 = En)", settings.CAN1ListenOnly);
     /*
     for (int i = 0; i < 8; i++) {
@@ -102,6 +104,10 @@ void SerialConsole::printMenu()
     Logger::console("BINSERIAL=%i - Enable/Disable Binary Sending of CANBus Frames to Serial (0=Dis, 1=En)", settings.useBinarySerialComm);
     Logger::console("FILETYPE=%i - Set type of file output (0=None, 1 = Binary, 2 = GVRET, 3 = CRTD)", settings.fileOutputType);
     Serial.println();
+
+    Logger::console("WIFIMODE=%i - Set mode for WiFi (0 = Wifi Off, 1 = Connect to AP, 2 = Create AP", settings.wifiMode);
+    Logger::console("SSID=%s - Set SSID to either connect to or create", (char *)settings.SSID);
+    Logger::console("WPA2KEY=%s - Either passphrase or actual key", (char *)settings.WPA2Key);
 
     Logger::console("FILEBASE=%s - Set filename base for saving", (char *)settings.fileNameBase);
     Logger::console("FILEEXT=%s - Set filename ext for saving", (char *)settings.fileNameExt);
@@ -458,7 +464,10 @@ void SerialConsole::handleConfigCmd()
         if (newValue < 0) newValue = 0;
         if (newValue > 1) newValue = 1;
         Logger::console("Setting CAN1 Enabled to %i", newValue);
-        if (newValue == 1) CAN1.begin(settings.CAN1Speed, 255);
+        if (newValue == 1) {
+            if (settings.CAN1_FDMode) CAN1.beginFD(settings.CAN1Speed, settings.CAN1FDSpeed);
+            else CAN1.begin(settings.CAN1Speed, 255);
+        }
         else CAN1.disable();
         settings.CAN1_Enabled = newValue;
         writeEEPROM = true;
@@ -473,9 +482,33 @@ void SerialConsole::handleConfigCmd()
         if (newValue > 0 && newValue <= 1000000) {
             Logger::console("Setting CAN1 Baud Rate to %i", newValue);
             settings.CAN1Speed = newValue;
-            if (settings.CAN1_Enabled) CAN1.begin(settings.CAN1Speed, 255);
+            if (settings.CAN1_Enabled) {
+                if (settings.CAN1_FDMode) CAN1.beginFD(settings.CAN1Speed, settings.CAN1FDSpeed);
+                else CAN1.begin(settings.CAN1Speed, 255);
+            }
             writeEEPROM = true;
         } else Logger::console("Invalid baud rate! Enter a value 1 - 1000000");
+    } else if (cmdString == String("CAN1FDSPEED")) {
+        if (newValue > 999999 && newValue <= 8000000) {
+            Logger::console("Setting CAN1 FD Data Baud Rate to %i", newValue);
+            settings.CAN1FDSpeed = newValue;
+            if (settings.CAN1_Enabled && settings.CAN1_FDMode) CAN1.beginFD(settings.CAN1Speed, settings.CAN1FDSpeed);
+            writeEEPROM = true;
+        } else Logger::console("Invalid baud rate! Enter a value 1000000 - 8000000");
+    } else if (cmdString == String("CAN1FDMODE")) {
+        if (newValue >= 0 && newValue <= 1) {
+            Logger::console("Setting CAN1 FD Mode to %i", newValue);
+            settings.CAN1_FDMode = newValue;
+            if (settings.CAN1_Enabled)
+            {
+                if (settings.CAN1_FDMode) {
+                    CAN1.beginFD(settings.CAN1Speed, settings.CAN1FDSpeed);
+                } else {
+                    CAN1.begin(settings.CAN1Speed, 255);
+                }
+            }
+            writeEEPROM = true;
+        } else Logger::console("Invalid setting! Enter a value 0 - 1");
     } else if (cmdString == String("CAN0LISTENONLY")) {
         if (newValue >= 0 && newValue <= 1) {
             Logger::console("Setting CAN0 Listen Only to %i", newValue);
@@ -552,6 +585,22 @@ void SerialConsole::handleConfigCmd()
         if (newValue > 1) newValue = 1;
         Logger::console("Setting Serial Binary Comm to %i", newValue);
         settings.useBinarySerialComm = newValue;
+        writeEEPROM = true;
+    } else if (cmdString == String("WIFIMODE")) {
+        if (newValue < 0) newValue = 0;
+        if (newValue > 2) newValue = 2;
+        if (newValue == 0) Logger::console("Setting Wifi Mode to OFF");
+        if (newValue == 1) Logger::console("Setting Wifi Mode to Connect to AP");
+        if (newValue == 2) Logger::console("Setting Wifi Mode to Create AP");
+        settings.wifiMode = (FILEOUTPUTTYPE)newValue; //the numbers all intentionally match up so this works
+        writeEEPROM = true;
+    } else if (cmdString == String("SSID")) {
+        Logger::console("Setting SSID to %s", newString);
+        strcpy((char *)settings.SSID, newString);
+        writeEEPROM = true;
+    } else if (cmdString == String("WPA2KEY")) {
+        Logger::console("Setting WPA2 Key to %s", newString);
+        strcpy((char *)settings.WPA2Key, newString);
         writeEEPROM = true;
     } else if (cmdString == String("FILETYPE")) {
         if (newValue < 0) newValue = 0;
