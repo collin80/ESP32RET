@@ -102,7 +102,7 @@ void Logger::error(const char *message, ...)
 }
 
 /*
- * Output a comnsole message with a variable amount of parameters
+ * Output a console message with a variable amount of parameters
  * printf() style, see Logger::logMessage()
  */
 void Logger::console(const char *message, ...)
@@ -399,8 +399,6 @@ void Logger::log(LogLevel level, const char *format, va_list args)
  * %f - prints the next parameter as double float
  * %x - prints the next parameter as hex value
  * %X - prints the next parameter as hex value with '0x' added before
- * %b - prints the next parameter as binary value
- * %B - prints the next parameter as binary value with '0b' added before
  * %l - prints the next parameter as long
  * %c - prints the next parameter as a character
  * %t - prints the next parameter as boolean ('T' or 'F')
@@ -408,6 +406,9 @@ void Logger::log(LogLevel level, const char *format, va_list args)
  */
 void Logger::logMessage(const char *format, va_list args)
 {
+    uint8_t buffer[200];
+    uint8_t buffLen = 0;
+    uint8_t writeLen;
     for (; *format != 0; ++format) {
         if (*format == '%') {
             ++format;
@@ -417,84 +418,84 @@ void Logger::logMessage(const char *format, va_list args)
             }
 
             if (*format == '%') {
-                Serial.print(*format);
+                buffer[buffLen++] = *format;
                 continue;
             }
 
             if (*format == 's') {
                 register char *s = (char *) va_arg(args, int);
-                Serial.print(s);
+                writeLen = sprintf((char*)&buffer[buffLen], "%s", s);
+                buffLen += writeLen;
                 continue;
             }
 
             if (*format == 'd' || *format == 'i') {
-                Serial.print(va_arg(args, int), DEC);
+                writeLen = sprintf((char*)&buffer[buffLen], "%i", va_arg(args, int));
+                buffLen += writeLen;
                 continue;
             }
 
             if (*format == 'f') {
-                Serial.print(va_arg(args, double), 2);
+                writeLen = sprintf((char*)&buffer[buffLen], "%.2f", va_arg(args, double));
+                buffLen += writeLen;
                 continue;
             }
 
             if (*format == 'x') {
-                Serial.print(va_arg(args, int), HEX);
+                writeLen = sprintf((char*)&buffer[buffLen], "%X", va_arg(args, int));
+                buffLen += writeLen;
                 continue;
             }
 
             if (*format == 'X') {
-                Serial.print("0x");
-                Serial.print(va_arg(args, int), HEX);
-                continue;
-            }
-
-            if (*format == 'b') {
-                Serial.print(va_arg(args, int), BIN);
-                continue;
-            }
-
-            if (*format == 'B') {
-                Serial.print("0b");
-                Serial.print(va_arg(args, int), BIN);
+                writeLen = sprintf((char*)&buffer[buffLen], "0x%X", va_arg(args, int));
+                buffLen += writeLen;
                 continue;
             }
 
             if (*format == 'l') {
-                Serial.print(va_arg(args, long), DEC);
+                writeLen = sprintf((char*)&buffer[buffLen], "%l", va_arg(args, long));
+                buffLen += writeLen;
                 continue;
             }
 
             if (*format == 'c') {
-                Serial.print(va_arg(args, int));
+                writeLen = sprintf((char*)&buffer[buffLen], "%c", va_arg(args, int));
+                buffLen += writeLen;
                 continue;
             }
 
             if (*format == 't') {
                 if (va_arg(args, int) == 1) {
-                    Serial.print("T");
+                    buffer[buffLen++] = 'T';
                 } else {
-                    Serial.print("F");
+                    buffer[buffLen++] = 'F';
                 }
-
                 continue;
             }
 
             if (*format == 'T') {
                 if (va_arg(args, int) == 1) {
-                    Serial.print("TRUE");
+                    writeLen = sprintf((char*)&buffer[buffLen], "TRUE");
+                    buffLen += writeLen;
                 } else {
-                    Serial.print("FALSE");
+                    writeLen = sprintf((char*)&buffer[buffLen], "FALSE");
+                    buffLen += writeLen;
                 }
-
                 continue;
             }
-
         }
-
-        Serial.print(*format);
+        else buffer[buffLen++] = *format;
     }
-
-    Serial.println();
+    buffer[buffLen++] = '\r';
+    buffer[buffLen++] = '\n';
+    Serial.write(buffer, buffLen);
+    //If wifi has connected nodes then send to them too.
+    for(int i = 0; i < MAX_CLIENTS; i++){
+        if (SysSettings.clientNodes[i] && SysSettings.clientNodes[i].connected()){
+            SysSettings.clientNodes[i].write(buffer, buffLen);
+        }
+    }
 }
 
 

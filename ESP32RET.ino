@@ -170,7 +170,7 @@ void setup()
 {
     //delay(5000); //just for testing. Don't use in production
 
-    Serial.begin(1000000);
+    Serial.begin(115200);
 
     SysSettings.isWifiConnected = false;
 
@@ -406,6 +406,7 @@ void sendFrameToUSB(CAN_FRAME_FD &frame, int whichBus)
             serialBufferLength += writtenBytes;
             if (frame.extended) sprintf((char *)&serialBuffer[serialBufferLength], " X ");
             else sprintf((char *)&serialBuffer[serialBufferLength], " S ");
+            serialBufferLength += 3;
             writtenBytes = sprintf((char *)&serialBuffer[serialBufferLength], "%i %i", whichBus, frame.length);
             serialBufferLength += writtenBytes;
             for (int c = 0; c < frame.length; c++) {
@@ -1049,7 +1050,7 @@ void loop()
                             {
                                 uint8_t inByt;
                                 inByt = SysSettings.clientNodes[i].read();
-                                Serial.write(inByt);
+                                //Serial.write(inByt); //echo to serial - just for debugging. Don't leave this on!
                                 processIncomingByte(inByt);
                             }
                         }
@@ -1125,7 +1126,7 @@ void loop()
         if (SysSettings.logToFile) sendFrameToFile(incomingFD, 0);
         if (digToggleSettings.enabled && (digToggleSettings.mode & 1) && (digToggleSettings.mode & 2)) processDigToggleFrame(incoming);
     }
-
+/*
     if (CAN1.available() > 0) {
         if (settings.CAN1_FDMode) 
         {
@@ -1143,7 +1144,7 @@ void loop()
         if (digToggleSettings.enabled && (digToggleSettings.mode & 1) && (digToggleSettings.mode & 4)) processDigToggleFrame(incoming);
         if (SysSettings.logToFile) sendFrameToFile(incomingFD, 1);
     }
-    
+  */  
     if (SysSettings.lawicelPollCounter > 0) SysSettings.lawicelPollCounter--;
     //}
 

@@ -69,7 +69,7 @@ void SerialConsole::printMenu()
     Serial.println();
 
     Logger::console("LOGLEVEL=%i - set log level (0=debug, 1=info, 2=warn, 3=error, 4=off)", settings.logLevel);
-    Logger::console("SYSTYPE=%i - set board type (0=Macchina M2)", settings.sysType);
+    Logger::console("SYSTYPE=%i - set board type (0=EVTV ESP32Due)", settings.sysType);
     Serial.println();
 
     Logger::console("CAN0EN=%i - Enable/Disable CAN0 (0 = Disable, 1 = Enable)", settings.CAN0_Enabled);
