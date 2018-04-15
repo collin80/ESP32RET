@@ -106,6 +106,7 @@ void SerialConsole::printMenu()
     Serial.println();
 
     Logger::console("WIFIMODE=%i - Set mode for WiFi (0 = Wifi Off, 1 = Connect to AP, 2 = Create AP", settings.wifiMode);
+    Logger::console("WIFISRV=%i - Set server mode (0 = TCP/IP Telnet, 1 = UDP Broadcast", settings.wifiServerMode);
     Logger::console("SSID=%s - Set SSID to either connect to or create", (char *)settings.SSID);
     Logger::console("WPA2KEY=%s - Either passphrase or actual key", (char *)settings.WPA2Key);
 
@@ -592,7 +593,14 @@ void SerialConsole::handleConfigCmd()
         if (newValue == 0) Logger::console("Setting Wifi Mode to OFF");
         if (newValue == 1) Logger::console("Setting Wifi Mode to Connect to AP");
         if (newValue == 2) Logger::console("Setting Wifi Mode to Create AP");
-        settings.wifiMode = (FILEOUTPUTTYPE)newValue; //the numbers all intentionally match up so this works
+        settings.wifiMode = newValue;
+        writeEEPROM = true;
+    } else if (cmdString == String("WIFISRV")) {
+        if (newValue < 0) newValue = 0;
+        if (newValue > 1) newValue = 1;
+        if (newValue == 0) Logger::console("Setting Wifi Server Type to TCP/IP Telnet (Port 23)");
+        if (newValue == 1) Logger::console("Setting Wifi Server Type to UDP Port 17222");
+        settings.wifiServerMode = newValue;
         writeEEPROM = true;
     } else if (cmdString == String("SSID")) {
         Logger::console("Setting SSID to %s", newString);

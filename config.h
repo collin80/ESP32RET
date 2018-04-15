@@ -47,15 +47,14 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //Buffer for CAN frames when sending over wifi. This allows us to build up a multi-frame packet that goes
 //over the air all at once. This is much more efficient than trying to send a new TCP/IP packet for each and every
 //frame. It delays frames from getting to the other side a bit but that's life.
-#define WIFI_BUFF_SIZE      1024
+#define WIFI_BUFF_SIZE      2048
 
 //Number of microseconds between hard flushes of the serial buffer (if not in wifi mode) or the wifi buffer (if in wifi mode)
 //This keeps the latency more consistent. Otherwise the buffer could partially fill and never send.
-#define SER_BUFF_FLUSH_INTERVAL 5000
+#define SER_BUFF_FLUSH_INTERVAL 500000
 
-#define CFG_BUILD_NUM   345
-#define CFG_VERSION "ESP32RET Alpha Apr 10 2018"
-#define EEPROM_ADDR     0x50
+#define CFG_BUILD_NUM   349
+#define CFG_VERSION "ESP32RET Alpha Apr 14 2018"
 #define EEPROM_VER      0x21
 
 #define MARK_LIMIT  6   //# of our analog input pins to use for marking. Defaults to all of them. Send voltage to pin to trigger it
@@ -117,6 +116,7 @@ struct EEPROMSettings {
     uint8_t wifiMode; //0 = don't use wifi, 1 = connect to an AP, 2 = Create an AP
     uint8_t SSID[32];     //null terminated string for the SSID
     uint8_t WPA2Key[64]; //Null terminated string for the key. Can be a passphase or the actual key
+    uint8_t wifiServerMode; //0 = Telnet (TCP/IP), 1 = UDP Broadcast on port 0x4346 17222 in decimal That's CF in ascii for CAN Frames
 };
 
 struct DigitalCANToggleSettings { //16 bytes

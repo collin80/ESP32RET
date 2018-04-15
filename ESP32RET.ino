@@ -44,7 +44,7 @@ typedef struct {
     uint8_t busloadPercentage;
 } BUSLOAD;
 
-byte serialBuffer[SER_BUFF_SIZE];
+byte serialBuffer[WIFI_BUFF_SIZE];
 int serialBufferLength = 0; //not creating a ring buffer. The buffer should be large enough to never overflow
 uint32_t lastFlushMicros = 0;
 BUSLOAD busLoad[2];
@@ -65,6 +65,8 @@ uint8_t digTogglePinCounter;
 
 WiFiMulti wifiMulti;
 WiFiServer wifiServer(23); //Register as a telnet server
+WiFiUDP wifiUDPServer;
+IPAddress broadcastAddr(192,168,4,255);
 
 //initializes all the system EEPROM values. Chances are this should be broken out a bit but
 //there is only one checksum check for all of them so it's simple to do it all here.
@@ -100,6 +102,7 @@ void loadSettings()
         settings.autoStartLogging = false;
         settings.logLevel = 1; //info
         settings.wifiMode = 0; //Wifi defaults to being off
+        settings.wifiServerMode = 0; //Default to TCP/IP Telnet server (sererial console works here)
         sprintf((char *)settings.SSID, "ESP32DUE");
         sprintf((char *)settings.WPA2Key, "supersecret");
         settings.sysType = 0; //ESP32Due as default
@@ -178,7 +181,13 @@ void setup()
 
     if (settings.wifiMode == 1)
     {
-        wifiMulti.addAP((const char *)settings.SSID, (const char *)settings.WPA2Key);
+        WiFi.mode(WIFI_STA);
+        WiFi.begin((const char *)settings.SSID, (const char *)settings.WPA2Key);
+    }
+    if (settings.wifiMode == 2)
+    {
+        WiFi.mode(WIFI_AP);
+        WiFi.softAP((const char *)settings.SSID, (const char *)settings.WPA2Key);
     }
 /*
     if (SysSettings.useSD) {
@@ -996,76 +1005,106 @@ void loop()
     bool isConnected = false;
     int serialCnt;
     uint8_t in_byte;
+    boolean needServerInit = false;
 
-    if (settings.wifiMode == 1)
+    if (settings.wifiMode > 0)
     {
         if (!SysSettings.isWifiConnected)
         {
-            if (wifiMulti.run() == WL_CONNECTED)
+            if (WiFi.isConnected())
             {
                 Serial.print("Wifi now connected to SSID ");
                 Serial.println((const char *)settings.SSID);
                 Serial.print("IP address: ");
                 Serial.println(WiFi.localIP());
-                SysSettings.isWifiConnected = true;
-                wifiServer.begin();
-                wifiServer.setNoDelay(true);
+                Serial.print("RSSI: ");
+                Serial.println(WiFi.RSSI());
+                needServerInit = true;
+            }
+            if (settings.wifiMode == 2)
+            {
+                Serial.print("Wifi setup as SSID ");
+                Serial.println((const char *)settings.SSID);
+                Serial.print("IP address: ");
+                Serial.println(WiFi.softAPIP());
+                needServerInit = true;
+            }
+            if (needServerInit)
+            {
+                if (settings.wifiServerMode == 0)
+                {
+                    SysSettings.isWifiConnected = true;
+                    wifiServer.begin();
+                    wifiServer.setNoDelay(true);
+                }
+                else
+                {
+                    Serial.println("Starting UDP Server");
+                    SysSettings.isWifiConnected = true;
+                    //wifiUDPServer.begin(17222);
+                }
             }
         }
         else
         {
-            if (wifiMulti.run() == WL_CONNECTED)
+            if (settings.wifiServerMode == 0)
             {
-                if (wifiServer.hasClient())
+                if (WiFi.isConnected() || settings.wifiMode == 2)
                 {
-                    for(i = 0; i < MAX_CLIENTS; i++)
+                    if (wifiServer.hasClient())
                     {
-                        if (!SysSettings.clientNodes[i] || !SysSettings.clientNodes[i].connected())
+                        for(i = 0; i < MAX_CLIENTS; i++)
                         {
-                            if (SysSettings.clientNodes[i]) SysSettings.clientNodes[i].stop();
-                            SysSettings.clientNodes[i] = wifiServer.available();
-                            if (!SysSettings.clientNodes[i]) Serial.println("Couldn't accept client connection!");
-                            else 
+                            if (!SysSettings.clientNodes[i] || !SysSettings.clientNodes[i].connected())
                             {
-                                Serial.print("New client: ");
-                                Serial.print(i); Serial.print(' ');
-                                Serial.println(SysSettings.clientNodes[i].remoteIP());
+                                if (SysSettings.clientNodes[i]) SysSettings.clientNodes[i].stop();
+                                SysSettings.clientNodes[i] = wifiServer.available();
+                                if (!SysSettings.clientNodes[i]) Serial.println("Couldn't accept client connection!");
+                                else 
+                                {
+                                    Serial.print("New client: ");
+                                    Serial.print(i); Serial.print(' ');
+                                    Serial.println(SysSettings.clientNodes[i].remoteIP());
+                                }
                             }
                         }
+                        if (i >= MAX_CLIENTS) {
+                            //no free/disconnected spot so reject
+                            wifiServer.available().stop();
+                        }
                     }
-                    if (i >= MAX_CLIENTS) {
-                        //no free/disconnected spot so reject
-                        wifiServer.available().stop();
-                    }
-                }
 
-                //check clients for data
-                for(i = 0; i < MAX_CLIENTS; i++){
-                    if (SysSettings.clientNodes[i] && SysSettings.clientNodes[i].connected())
-                    {
-                        if(SysSettings.clientNodes[i].available())
+                    //check clients for data
+                    for(i = 0; i < MAX_CLIENTS; i++){
+                        if (SysSettings.clientNodes[i] && SysSettings.clientNodes[i].connected())
                         {
-                            //get data from the telnet client and push it to the UART
-                            while(SysSettings.clientNodes[i].available()) 
+                            if(SysSettings.clientNodes[i].available())
                             {
-                                uint8_t inByt;
-                                inByt = SysSettings.clientNodes[i].read();
-                                //Serial.write(inByt); //echo to serial - just for debugging. Don't leave this on!
-                                processIncomingByte(inByt);
+                                //get data from the telnet client and push it to the UART
+                                while(SysSettings.clientNodes[i].available()) 
+                                {
+                                    uint8_t inByt;
+                                    inByt = SysSettings.clientNodes[i].read();
+                                    //Serial.write(inByt); //echo to serial - just for debugging. Don't leave this on!
+                                    processIncomingByte(inByt);
+                                }
+                            }
+                        }
+                        else {
+                            if (SysSettings.clientNodes[i]) {
+                                SysSettings.clientNodes[i].stop();
                             }
                         }
                     }
-                    else {
-                        if (SysSettings.clientNodes[i]) {
-                            SysSettings.clientNodes[i].stop();
-                        }
+                }
+                else 
+                {
+                    if (settings.wifiMode == 1)
+                    {
+                    Serial.println("WiFi disconnected. Bummer!");
+                    SysSettings.isWifiConnected = false;
                     }
                 }
-            }
-            else 
-            {
-                Serial.println("WiFi disconnected. Bummer!");
-                SysSettings.isWifiConnected = false;
             }
         }
     }
@@ -1126,7 +1165,7 @@ void loop()
         if (SysSettings.logToFile) sendFrameToFile(incomingFD, 0);
         if (digToggleSettings.enabled && (digToggleSettings.mode & 1) && (digToggleSettings.mode & 2)) processDigToggleFrame(incoming);
     }
-/*
+
     if (CAN1.available() > 0) {
         if (settings.CAN1_FDMode) 
         {
@@ -1144,7 +1183,7 @@ void loop()
         if (digToggleSettings.enabled && (digToggleSettings.mode & 1) && (digToggleSettings.mode & 4)) processDigToggleFrame(incoming);
         if (SysSettings.logToFile) sendFrameToFile(incomingFD, 1);
     }
-  */  
+  
     if (SysSettings.lawicelPollCounter > 0) SysSettings.lawicelPollCounter--;
     //}
 
@@ -1168,15 +1207,28 @@ void loop()
         }
     }
 
-    if (micros() - lastFlushMicros > SER_BUFF_FLUSH_INTERVAL) {
+    //If the max time has passed or the buffer is almost filled then send a frame out
+    if ((micros() - lastFlushMicros > SER_BUFF_FLUSH_INTERVAL) || (serialBufferLength > (WIFI_BUFF_SIZE - 40)) ) {
         if (serialBufferLength > 0) {
             if (settings.wifiMode == 0 || !SysSettings.isWifiConnected) Serial.write(serialBuffer, serialBufferLength);
             else
             {
-                for(i = 0; i < MAX_CLIENTS; i++){
-                    if (SysSettings.clientNodes[i] && SysSettings.clientNodes[i].connected()){
-                        SysSettings.clientNodes[i].write(serialBuffer, serialBufferLength);
+                if (settings.wifiServerMode == 0)
+                {
+                    for(i = 0; i < MAX_CLIENTS; i++){
+                        if (SysSettings.clientNodes[i] && SysSettings.clientNodes[i].connected()){
+                            SysSettings.clientNodes[i].write(serialBuffer, serialBufferLength);
+                        }
                     }
+                }
+                else //UDP broadcast
+                {
+                    //Serial.write('*');
+                    wifiUDPServer.begin(17222);
+                    wifiUDPServer.beginPacket(broadcastAddr, 17222);
+                    wifiUDPServer.write(serialBuffer, serialBufferLength);
+                    wifiUDPServer.endPacket();
+                    wifiUDPServer.stop();
                 }
             }
             serialBufferLength = 0;
