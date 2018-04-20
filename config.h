@@ -51,10 +51,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //Number of microseconds between hard flushes of the serial buffer (if not in wifi mode) or the wifi buffer (if in wifi mode)
 //This keeps the latency more consistent. Otherwise the buffer could partially fill and never send.
-#define SER_BUFF_FLUSH_INTERVAL 500000
+#define SER_BUFF_FLUSH_INTERVAL 50000
 
-#define CFG_BUILD_NUM   349
-#define CFG_VERSION "ESP32RET Alpha Apr 14 2018"
+#define CFG_BUILD_NUM   350
+#define CFG_VERSION "ESP32RET Alpha Apr 17 2018"
 #define EEPROM_VER      0x21
 
 #define MARK_LIMIT  6   //# of our analog input pins to use for marking. Defaults to all of them. Send voltage to pin to trigger it

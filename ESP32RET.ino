@@ -571,53 +571,50 @@ void processIncomingByte(uint8_t in_byte)
         case PROTO_TIME_SYNC:
             state = TIME_SYNC;
             step = 0;
-            buff[0] = 0xF1;
-            buff[1] = 1; //time sync
-            buff[2] = (uint8_t) (now & 0xFF);
-            buff[3] = (uint8_t) (now >> 8);
-            buff[4] = (uint8_t) (now >> 16);
-            buff[5] = (uint8_t) (now >> 24);
-            Serial.write(buff, 6);
+            serialBuffer[serialBufferLength++] = 0xF1;
+            serialBuffer[serialBufferLength++] = 1; //time sync
+            serialBuffer[serialBufferLength++] = (uint8_t) (now & 0xFF);
+            serialBuffer[serialBufferLength++] = (uint8_t) (now >> 8);
+            serialBuffer[serialBufferLength++] = (uint8_t) (now >> 16);
+            serialBuffer[serialBufferLength++] = (uint8_t) (now >> 24);
             break;
         case PROTO_DIG_INPUTS:
             //immediately return the data for digital inputs
             temp8 = 0; //getDigital(0) + (getDigital(1) << 1) + (getDigital(2) << 2) + (getDigital(3) << 3) + (getDigital(4) << 4) + (getDigital(5) << 5);
-            buff[0] = 0xF1;
-            buff[1] = 6; //digital inputs
-            buff[2] = temp8;
+            serialBuffer[serialBufferLength++] = 0xF1;
+            serialBuffer[serialBufferLength++] = 2; //digital inputs
+            serialBuffer[serialBufferLength++] = temp8;
             temp8 = checksumCalc(buff, 2);
-            buff[3] = temp8;
-            Serial.write(buff, 4);
+            serialBuffer[serialBufferLength++]  = temp8;
             state = IDLE;
             break;
         case PROTO_ANA_INPUTS:
             //immediately return data on analog inputs
             temp16 = 0;// getAnalog(0);  // Analogue input 1
-            buff[0] = 0xF1;
-            buff[1] = 3;
-            buff[2] = temp16 & 0xFF;
-            buff[3] = uint8_t(temp16 >> 8);
+            serialBuffer[serialBufferLength++] = 0xF1;
+            serialBuffer[serialBufferLength++] = 3;
+            serialBuffer[serialBufferLength++] = temp16 & 0xFF;
+            serialBuffer[serialBufferLength++] = uint8_t(temp16 >> 8);
             temp16 = 0;//getAnalog(1);  // Analogue input 2
-            buff[4] = temp16 & 0xFF;
-            buff[5] = uint8_t(temp16 >> 8);
+            serialBuffer[serialBufferLength++] = temp16 & 0xFF;
+            serialBuffer[serialBufferLength++] = uint8_t(temp16 >> 8);
             temp16 = 0;//getAnalog(2);  // Analogue input 3
-            buff[6] = temp16 & 0xFF;
-            buff[7] = uint8_t(temp16 >> 8);
+            serialBuffer[serialBufferLength++] = temp16 & 0xFF;
+            serialBuffer[serialBufferLength++] = uint8_t(temp16 >> 8);
             temp16 = 0;//getAnalog(3);  // Analogue input 4
-            buff[8] = temp16 & 0xFF;
-            buff[9] = uint8_t(temp16 >> 8);
+            serialBuffer[serialBufferLength++] = temp16 & 0xFF;
+            serialBuffer[serialBufferLength++] = uint8_t(temp16 >> 8);
             temp16 = 0;//getAnalog(4);  // Analogue input 5
-            buff[10] = temp16 & 0xFF;
-            buff[11] = uint8_t(temp16 >> 8);
+            serialBuffer[serialBufferLength++] = temp16 & 0xFF;
+            serialBuffer[serialBufferLength++] = uint8_t(temp16 >> 8);
             temp16 = 0;//getAnalog(5);  // Analogue input 6
-            buff[12] = temp16 & 0xFF;
-            buff[13] = uint8_t(temp16 >> 8);
+            serialBuffer[serialBufferLength++] = temp16 & 0xFF;
+            serialBuffer[serialBufferLength++] = uint8_t(temp16 >> 8);
             temp16 = 0;//getAnalog(6);  // Vehicle Volts
-            buff[14] = temp16 & 0xFF;
-            buff[15] = uint8_t(temp16 >> 8);
+            serialBuffer[serialBufferLength++] = temp16 & 0xFF;
+            serialBuffer[serialBufferLength++] = uint8_t(temp16 >> 8);
             temp8 = checksumCalc(buff, 9);
-            buff[16] = temp8;
-            Serial.write(buff, 17);
+            serialBuffer[serialBufferLength++] = temp8;
             state = IDLE;
             break;
         case PROTO_SET_DIG_OUT:
@@ -631,32 +628,30 @@ void processIncomingByte(uint8_t in_byte)
             break;
         case PROTO_GET_CANBUS_PARAMS:
             //immediately return data on canbus params
-            buff[0] = 0xF1;
-            buff[1] = 6;
-            buff[2] = settings.CAN0_Enabled + ((unsigned char) settings.CAN0ListenOnly << 4);
-            buff[3] = settings.CAN0Speed;
-            buff[4] = settings.CAN0Speed >> 8;
-            buff[5] = settings.CAN0Speed >> 16;
-            buff[6] = settings.CAN0Speed >> 24;
-            buff[7] = settings.CAN1_Enabled + ((unsigned char) settings.CAN1ListenOnly << 4); //+ (unsigned char)settings.singleWireMode << 6;
-            buff[8] = settings.CAN1Speed;
-            buff[9] = settings.CAN1Speed >> 8;
-            buff[10] = settings.CAN1Speed >> 16;
-            buff[11] = settings.CAN1Speed >> 24;
-            Serial.write(buff, 12);
+            serialBuffer[serialBufferLength++] = 0xF1;
+            serialBuffer[serialBufferLength++] = 6;
+            serialBuffer[serialBufferLength++] = settings.CAN0_Enabled + ((unsigned char) settings.CAN0ListenOnly << 4);
+            serialBuffer[serialBufferLength++] = settings.CAN0Speed;
+            serialBuffer[serialBufferLength++] = settings.CAN0Speed >> 8;
+            serialBuffer[serialBufferLength++] = settings.CAN0Speed >> 16;
+            serialBuffer[serialBufferLength++] = settings.CAN0Speed >> 24;
+            serialBuffer[serialBufferLength++] = settings.CAN1_Enabled + ((unsigned char) settings.CAN1ListenOnly << 4); //+ (unsigned char)settings.singleWireMode << 6;
+            serialBuffer[serialBufferLength++] = settings.CAN1Speed;
+            serialBuffer[serialBufferLength++] = settings.CAN1Speed >> 8;
+            serialBuffer[serialBufferLength++] = settings.CAN1Speed >> 16;
+            serialBuffer[serialBufferLength++] = settings.CAN1Speed >> 24;
             state = IDLE;
             break;
         case PROTO_GET_DEV_INFO:
             //immediately return device information
-            buff[0] = 0xF1;
-            buff[1] = 7;
-            buff[2] = CFG_BUILD_NUM & 0xFF;
-            buff[3] = (CFG_BUILD_NUM >> 8);
-            buff[4] = EEPROM_VER;
-            buff[5] = (unsigned char) settings.fileOutputType;
-            buff[6] = (unsigned char) settings.autoStartLogging;
-            buff[7] = 0; //was single wire mode. Should be rethought for this board.
-            Serial.write(buff, 8);
+            serialBuffer[serialBufferLength++] = 0xF1;
+            serialBuffer[serialBufferLength++] = 7;
+            serialBuffer[serialBufferLength++] = CFG_BUILD_NUM & 0xFF;
+            serialBuffer[serialBufferLength++] = (CFG_BUILD_NUM >> 8);
+            serialBuffer[serialBufferLength++] = EEPROM_VER;
+            serialBuffer[serialBufferLength++] = (unsigned char) settings.fileOutputType;
+            serialBuffer[serialBufferLength++] = (unsigned char) settings.autoStartLogging;
+            serialBuffer[serialBufferLength++] = 0; //was single wire mode. Should be rethought for this board.
             state = IDLE;
             break;
         case PROTO_SET_SW_MODE:
@@ -665,11 +660,10 @@ void processIncomingByte(uint8_t in_byte)
             step = 0;
             break;
         case PROTO_KEEPALIVE:
-            buff[0] = 0xF1;
-            buff[1] = 0x09;
-            buff[2] = 0xDE;
-            buff[3] = 0xAD;
-            Serial.write(buff, 4);
+            serialBuffer[serialBufferLength++] = 0xF1;
+            serialBuffer[serialBufferLength++] = 0x09;
+            serialBuffer[serialBufferLength++] = 0xDE;
+            serialBuffer[serialBufferLength++] = 0xAD;
             state = IDLE;
             break;
         case PROTO_SET_SYSTYPE:
@@ -683,17 +677,15 @@ void processIncomingByte(uint8_t in_byte)
             step = 0;
             break;
         case PROTO_GET_NUMBUSES:
-            buff[0] = 0xF1;
-            buff[1] = 12;
-            buff[2] = 2; //just CAN0 and CAN1 on this hardware
-            Serial.write(buff, 3);
+            serialBuffer[serialBufferLength++] = 0xF1;
+            serialBuffer[serialBufferLength++] = 12;
+            serialBuffer[serialBufferLength++] = 2; //just CAN0 and CAN1 on this hardware
             state = IDLE;
             break;
         case PROTO_GET_EXT_BUSES:
-            buff[0] = 0xF1;
-            buff[1] = 13;
-            for (int u = 2; u < 17; u++) buff[u] = 0;
-            Serial.write(buff, 17);
+            serialBuffer[serialBufferLength++]  = 0xF1;
+            serialBuffer[serialBufferLength++]  = 13;
+            for (int u = 2; u < 17; u++) serialBuffer[serialBufferLength++] = 0;
             state = IDLE;
             break;
         case PROTO_SET_EXT_BUSES:
@@ -1128,10 +1120,11 @@ void loop()
 
     /*if (Serial)*/ isConnected = true;
 
-    for (int i = 0; i < MARK_LIMIT; i++)
-    {
-        if ((lastMarkTrigger + 100) < millis()) //prevent jitter on switch closing
-        {/*
+    //for (int i = 0; i < MARK_LIMIT; i++)
+    //{
+        //if ((lastMarkTrigger + 100) < millis()) //prevent jitter on switch closing
+        //{
+            /*
             if (M2IO.GetButton_12VIO(i + 1)) {
     	        if (!markToggle[i]) {
     		        markToggle[i] = true;
@@ -1151,8 +1144,8 @@ void loop()
                 if (markToggle[i]) lastMarkTrigger = millis(); //causes it to also not trigger on jitter when switch opens
                 markToggle[i] = false;
             } */
-        }
-    }
+        //}
+    //}
 
     //if (!SysSettings.lawicelMode || SysSettings.lawicelAutoPoll || SysSettings.lawicelPollCounter > 0)
     //{
@@ -1244,6 +1237,6 @@ void loop()
     }
 
     Logger::loop();
-    elmEmulator.loop();
+    //elmEmulator.loop();
 }
 
