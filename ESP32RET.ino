@@ -69,7 +69,8 @@ uint8_t digTogglePinCounter;
 WiFiMulti wifiMulti;
 WiFiServer wifiServer(23); //Register as a telnet server
 WiFiUDP wifiUDPServer;
-IPAddress broadcastAddr(192,168,4,255);
+//IPAddress broadcastAddr(192,168,4,255);
+IPAddress broadcastAddr(10,0,0,255);
 
 //initializes all the system EEPROM values. Chances are this should be broken out a bit but
 //there is only one checksum check for all of them so it's simple to do it all here.
@@ -105,7 +106,7 @@ void loadSettings()
         settings.autoStartLogging = false;
         settings.logLevel = 1; //info
         settings.wifiMode = 0; //Wifi defaults to being off
-        settings.wifiServerMode = 0; //Default to TCP/IP Telnet server (sererial console works here)
+        settings.wifiServerMode = 0; //Default to TCP/IP Telnet server (serial console works here)
         sprintf((char *)settings.SSID, "ESP32DUE");
         sprintf((char *)settings.WPA2Key, "supersecret");
         settings.sysType = 0; //ESP32Due as default
@@ -689,6 +690,7 @@ void processIncomingByte(uint8_t in_byte)
             serialBuffer[serialBufferLength++]  = 0xF1;
             serialBuffer[serialBufferLength++]  = 13;
             for (int u = 2; u < 17; u++) serialBuffer[serialBufferLength++] = 0;
+            step = 0;
             state = IDLE;
             break;
         case PROTO_SET_EXT_BUSES:
@@ -1036,7 +1038,7 @@ void loop()
                 {
                     Serial.println("Starting UDP Server");
                     SysSettings.isWifiConnected = true;
-                    //wifiUDPServer.begin(17222);
+                    wifiUDPServer.begin(17222);
                 }
                 ArduinoOTA.setPort(3232);
                 ArduinoOTA.setHostname("ESPRET");
@@ -1252,11 +1254,11 @@ void loop()
                 else //UDP broadcast
                 {
                     //Serial.write('*');
-                    wifiUDPServer.begin(17222);
+                    //wifiUDPServer.begin(17222);
                     wifiUDPServer.beginPacket(broadcastAddr, 17222);
                     wifiUDPServer.write(serialBuffer, serialBufferLength);
                     wifiUDPServer.endPacket();
-                    wifiUDPServer.stop();
+                    //wifiUDPServer.stop();
                 }
             }
             serialBufferLength = 0;
