@@ -32,7 +32,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <ESPmDNS.h>
-#include <AsyncUDP.h>
+#include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include "ELM327_Emulator.h"
 
@@ -68,7 +68,7 @@ uint8_t digTogglePinCounter;
 
 WiFiMulti wifiMulti;
 WiFiServer wifiServer(23); //Register as a telnet server
-AsyncUDP wifiUDPServer;
+WiFiUDP wifiUDPServer;
 //IPAddress broadcastAddr(192,168,4,255);
 IPAddress broadcastAddr(10,0,0,255);
 
@@ -177,7 +177,7 @@ void setup()
 {
     //delay(5000); //just for testing. Don't use in production
 
-    Serial.begin(115200);
+    Serial.begin(1000000);
 
     SysSettings.isWifiConnected = false;
 
@@ -1035,23 +1035,11 @@ void loop()
                     wifiServer.setNoDelay(true);                    
                 }
                 else
-                {                    
+                {
+                    Serial.println("Starting UDP Server");
                     SysSettings.isWifiConnected = true;
-                    if (wifiUDPServer.listen(17222)) {
-                       Serial.println("Starting UDP Server");
-                       wifiUDPServer.onPacket (
-                          [](AsyncUDPPacket packet) {
-                             Serial.println(packet.length());
-                             for (int ix = 0 ; ix < packet.length(); ix++)
-                             {
-                                Serial.println(packet.data()[ix]);
-                                processIncomingByte(packet.data()[ix]);
-                             }
-                          }
-                       );
-                   } 
+                    wifiUDPServer.begin(17222);
                 }
-                
                 ArduinoOTA.setPort(3232);
                 ArduinoOTA.setHostname("ESPRET");
                 // No authentication by default
@@ -1137,6 +1125,7 @@ void loop()
                             }
                         }
                     }
+                    
                 }
                 else 
                 {
@@ -1146,6 +1135,18 @@ void loop()
                     SysSettings.isWifiConnected = false;
                     }
                 }
+            }
+            else if (settings.wifiServerMode == 1) //UDP is connectionless so just see if any traffic showed up
+            {
+              if (wifiUDPServer.parsePacket() > 0)
+              {
+                 uint8_t byt;
+                 while(wifiUDPServer.available())
+                 {
+                     byt = wifiUDPServer.read();
+                     processIncomingByte(byt);
+                 }
+              }
             }
         }
     }
@@ -1266,11 +1267,9 @@ void loop()
                 else //UDP broadcast
                 {
                     //Serial.write('*');
-                    //wifiUDPServer.begin(17222);
-                    //wifiUDPServer.beginPacket(broadcastAddr, 17222);
-                    wifiUDPServer.broadcast(serialBuffer, serialBufferLength);
-                    //wifiUDPServer.endPacket();
-                    //wifiUDPServer.stop();
+                    wifiUDPServer.beginPacket(broadcastAddr, 17222);
+                    wifiUDPServer.write(serialBuffer, serialBufferLength);
+                    wifiUDPServer.endPacket();
                 }
             }
             serialBufferLength = 0;
