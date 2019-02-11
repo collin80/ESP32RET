@@ -58,14 +58,12 @@ class ELM327Emu {
 public:
 
     ELM327Emu();
-    ELM327Emu(HardwareSerial *which);
     void setup(); //initialization on start up
     void handleTick(); //periodic processes
-    void loop();
+    void processCmd(char *buff);
     void sendCmd(String cmd);
 
 private:
-    HardwareSerial *serialInterface; //Allows for retargetting which serial port we use
     char incomingBuffer[128]; //storage for one incoming line
     char buffer[30]; // a buffer for various string conversions
     bool bLineFeed; //should we use line feeds?
@@ -74,15 +72,10 @@ private:
     int ibWritePtr;
     int currReply;
 
-    void processCmd();
     String processELMCmd(char *cmd);
     bool processRequest(uint8_t mode, uint8_t pid, char *inData, char *outData);
     bool processShowData(uint8_t pid, char *inData, char *outData);
     bool processShowCustomData(uint16_t pid, char *inData, char *outData);    
 };
 
-
-  
 #endif
-
-

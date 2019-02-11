@@ -29,11 +29,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "config.h"
 #include <esp32_can.h>
 #include <SPI.h>
-#include <WiFi.h>
-#include <WiFiMulti.h>
-#include <ESPmDNS.h>
-#include <WiFiUdp.h>
-#include <ArduinoOTA.h>
+#include <BluetoothSerial.h>
 #include "ELM327_Emulator.h"
 
 #include "EEPROM.h"
@@ -59,18 +55,12 @@ EEPROMSettings settings;
 SystemSettings SysSettings;
 DigitalCANToggleSettings digToggleSettings;
 
-ELM327Emu elmEmulator;
+BluetoothSerial SerialBT;
 
 SerialConsole console;
 
 bool digTogglePinState;
 uint8_t digTogglePinCounter;
-
-WiFiMulti wifiMulti;
-WiFiServer wifiServer(23); //Register as a telnet server
-WiFiUDP wifiUDPServer;
-//IPAddress broadcastAddr(192,168,4,255);
-IPAddress broadcastAddr(10,0,0,255);
 
 //initializes all the system EEPROM values. Chances are this should be broken out a bit but
 //there is only one checksum check for all of them so it's simple to do it all here.
@@ -179,20 +169,9 @@ void setup()
 
     Serial.begin(1000000);
 
-    SysSettings.isWifiConnected = false;
-
     loadSettings();
 
-    if (settings.wifiMode == 1)
-    {
-        WiFi.mode(WIFI_STA);
-        WiFi.begin((const char *)settings.SSID, (const char *)settings.WPA2Key);
-    }
-    if (settings.wifiMode == 2)
-    {
-        WiFi.mode(WIFI_AP);
-        WiFi.softAP((const char *)settings.SSID, (const char *)settings.WPA2Key);
-    }
+    SerialBT.begin("ESP32-BT");
 /*
     if (SysSettings.useSD) {
         if (SD.Init()) {
@@ -1004,152 +983,6 @@ void loop()
     uint8_t in_byte;
     boolean needServerInit = false;    
 
-    if (settings.wifiMode > 0)
-    {
-        if (!SysSettings.isWifiConnected)
-        {
-            if (WiFi.isConnected())
-            {
-                Serial.print("Wifi now connected to SSID ");
-                Serial.println((const char *)settings.SSID);
-                Serial.print("IP address: ");
-                Serial.println(WiFi.localIP());
-                Serial.print("RSSI: ");
-                Serial.println(WiFi.RSSI());
-                needServerInit = true;
-            }
-            if (settings.wifiMode == 2)
-            {
-                Serial.print("Wifi setup as SSID ");
-                Serial.println((const char *)settings.SSID);
-                Serial.print("IP address: ");
-                Serial.println(WiFi.softAPIP());
-                needServerInit = true;
-            }
-            if (needServerInit)
-            {
-                if (settings.wifiServerMode == 0)
-                {
-                    SysSettings.isWifiConnected = true;
-                    wifiServer.begin();
-                    wifiServer.setNoDelay(true);                    
-                }
-                else
-                {
-                    Serial.println("Starting UDP Server");
-                    SysSettings.isWifiConnected = true;
-                    wifiUDPServer.begin(17222);
-                }
-                ArduinoOTA.setPort(3232);
-                ArduinoOTA.setHostname("ESPRET");
-                // No authentication by default
-                //ArduinoOTA.setPassword("admin");
-                
-                ArduinoOTA
-                   .onStart([]() {
-                      String type;
-                      if (ArduinoOTA.getCommand() == U_FLASH)
-                         type = "sketch";
-                      else // U_SPIFFS
-                         type = "filesystem";
-
-                      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-                      Serial.println("Start updating " + type);
-                   })
-                   .onEnd([]() {
-                      Serial.println("\nEnd");
-                   })
-                   .onProgress([](unsigned int progress, unsigned int total) {
-                       Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-                   })
-                   .onError([](ota_error_t error) {
-                      Serial.printf("Error[%u]: ", error);
-                      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-                      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-                      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-                      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-                      else if (error == OTA_END_ERROR) Serial.println("End Failed");
-                   });
-                   
-                ArduinoOTA.begin();
-            }
-        }
-        else
-        {
-            if (settings.wifiServerMode == 0)
-            {
-                if (WiFi.isConnected() || settings.wifiMode == 2)
-                {
-                    if (wifiServer.hasClient())
-                    {
-                        for(i = 0; i < MAX_CLIENTS; i++)
-                        {
-                            if (!SysSettings.clientNodes[i] || !SysSettings.clientNodes[i].connected())
-                            {
-                                if (SysSettings.clientNodes[i]) SysSettings.clientNodes[i].stop();
-                                SysSettings.clientNodes[i] = wifiServer.available();
-                                if (!SysSettings.clientNodes[i]) Serial.println("Couldn't accept client connection!");
-                                else 
-                                {
-                                    Serial.print("New client: ");
-                                    Serial.print(i); Serial.print(' ');
-                                    Serial.println(SysSettings.clientNodes[i].remoteIP());
-                                }
-                            }
-                        }
-                        if (i >= MAX_CLIENTS) {
-                            //no free/disconnected spot so reject
-                            wifiServer.available().stop();
-                        }
-                    }
-
-                    //check clients for data
-                    for(i = 0; i < MAX_CLIENTS; i++){
-                        if (SysSettings.clientNodes[i] && SysSettings.clientNodes[i].connected())
-                        {
-                            if(SysSettings.clientNodes[i].available())
-                            {
-                                //get data from the telnet client and push it to the UART
-                                while(SysSettings.clientNodes[i].available()) 
-                                {
-                                    uint8_t inByt;
-                                    inByt = SysSettings.clientNodes[i].read();
-                                    //Serial.write(inByt); //echo to serial - just for debugging. Don't leave this on!
-                                    processIncomingByte(inByt);
-                                }
-                            }
-                        }
-                        else {
-                            if (SysSettings.clientNodes[i]) {
-                                SysSettings.clientNodes[i].stop();
-                            }
-                        }
-                    }
-                    
-                }
-                else 
-                {
-                    if (settings.wifiMode == 1)
-                    {
-                    Serial.println("WiFi disconnected. Bummer!");
-                    SysSettings.isWifiConnected = false;
-                    }
-                }
-            }
-            else if (settings.wifiServerMode == 1) //UDP is connectionless so just see if any traffic showed up
-            {
-              if (wifiUDPServer.parsePacket() > 0)
-              {
-                 uint8_t byt;
-                 while(wifiUDPServer.available())
-                 {
-                     byt = wifiUDPServer.read();
-                     processIncomingByte(byt);
-                 }
-              }
-            }
-        }
-    }
     if (millis() > (busLoadTimer + 250)) {
         busLoadTimer = millis();
         busLoad[0].busloadPercentage = ((busLoad[0].busloadPercentage * 3) + (((busLoad[0].bitsSoFar * 1000) / busLoad[0].bitsPerQuarter) / 10)) / 4;
@@ -1267,9 +1100,9 @@ void loop()
                 else //UDP broadcast
                 {
                     //Serial.write('*');
-                    wifiUDPServer.beginPacket(broadcastAddr, 17222);
-                    wifiUDPServer.write(serialBuffer, serialBufferLength);
-                    wifiUDPServer.endPacket();
+                    //wifiUDPServer.beginPacket(broadcastAddr, 17222);
+                    //wifiUDPServer.write(serialBuffer, serialBufferLength);
+                    //wifiUDPServer.endPacket();
                 }
             }
             serialBufferLength = 0;
@@ -1284,8 +1117,12 @@ void loop()
         processIncomingByte(in_byte);
     }
 
+    while ( (SerialBT.available() > 0) && serialCnt < 128) {
+        serialCnt++;
+        in_byte = SerialBT.read();
+        processIncomingByte(in_byte);
+    }
+    
     Logger::loop();
     //elmEmulator.loop();
-    ArduinoOTA.handle();
 }
-

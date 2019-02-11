@@ -34,6 +34,9 @@
 #include "EEPROM.h"
 #include "config.h"
 #include "sys_io.h"
+#include "ELM327_Emulator.h"
+
+ELM327Emu elmEmulator;
 
 extern void CANHandler();
 
@@ -157,7 +160,10 @@ void SerialConsole::handleConsoleCmd()
             boolean equalSign = false;
             for (int i = 0; i < ptrBuffer; i++) if (cmdBuffer[i] == '=') equalSign = true;
             if (equalSign) handleConfigCmd();
-            else handleLawicelCmd(); //single letter lawicel commands handled in handleShortCmd though.
+            else 
+            {              
+              elmEmulator.processCmd(cmdBuffer); //ELM327 commands have no equal sign
+            }
         }
         ptrBuffer = 0; //reset line counter once the line has been processed
     }
