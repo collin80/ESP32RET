@@ -50,6 +50,7 @@ typedef struct {
 byte serialBuffer[WIFI_BUFF_SIZE];
 int serialBufferLength = 0; //not creating a ring buffer. The buffer should be large enough to never overflow
 uint32_t lastFlushMicros = 0;
+uint32_t lastBroadcast = 0;
 BUSLOAD busLoad[2];
 uint32_t busLoadTimer;
 bool markToggle[6];
@@ -69,8 +70,7 @@ uint8_t digTogglePinCounter;
 WiFiMulti wifiMulti;
 WiFiServer wifiServer(23); //Register as a telnet server
 WiFiUDP wifiUDPServer;
-//IPAddress broadcastAddr(192,168,4,255);
-IPAddress broadcastAddr(10,0,0,255);
+IPAddress broadcastAddr(255,255,255,255);
 
 //initializes all the system EEPROM values. Chances are this should be broken out a bit but
 //there is only one checksum check for all of them so it's simple to do it all here.
@@ -154,6 +154,8 @@ void loadSettings()
         SysSettings.lawicellExtendedMode = false;
         SysSettings.lawicelTimestamping = false;
         SysSettings.numBuses = 2; //Currently we support CAN0, CAN1
+        SysSettings.isWifiActive = false;
+        SysSettings.isWifiConnected = false;
         for (int rx = 0; rx < NUM_BUSES; rx++) SysSettings.lawicelBusReception[rx] = true; //default to showing messages on RX 
         //set pin mode for all LEDS
 //        break;
@@ -1114,6 +1116,7 @@ void loop()
                                 {
                                     uint8_t inByt;
                                     inByt = SysSettings.clientNodes[i].read();
+                                    SysSettings.isWifiActive = true;
                                     //Serial.write(inByt); //echo to serial - just for debugging. Don't leave this on!
                                     processIncomingByte(inByt);
                                 }
@@ -1133,6 +1136,7 @@ void loop()
                     {
                     Serial.println("WiFi disconnected. Bummer!");
                     SysSettings.isWifiConnected = false;
+                    SysSettings.isWifiActive = false;
                     }
                 }
             }
@@ -1144,6 +1148,7 @@ void loop()
                  while(wifiUDPServer.available())
                  {
                      byt = wifiUDPServer.read();
+                     SysSettings.isWifiActive = true;
                      processIncomingByte(byt);
                  }
               }
@@ -1250,10 +1255,19 @@ void loop()
         }
     }
 
+    if (SysSettings.isWifiConnected && micros() - lastBroadcast > 1000000ul) //every second send out a broadcast ping
+    {
+        uint8_t buff[4] = {0x1C,0xEF,0xAC,0xED};
+        lastBroadcast = micros();
+        wifiUDPServer.beginPacket(broadcastAddr, 17222);
+        wifiUDPServer.write(buff, 4);
+        wifiUDPServer.endPacket();
+    }
+
     //If the max time has passed or the buffer is almost filled then send a frame out
     if ((micros() - lastFlushMicros > SER_BUFF_FLUSH_INTERVAL) || (serialBufferLength > (WIFI_BUFF_SIZE - 40)) ) {
         if (serialBufferLength > 0) {
-            if (settings.wifiMode == 0 || !SysSettings.isWifiConnected) Serial.write(serialBuffer, serialBufferLength);
+            if (settings.wifiMode == 0 || !SysSettings.isWifiActive) Serial.write(serialBuffer, serialBufferLength);
             else
             {
                 if (settings.wifiServerMode == 0)
@@ -1281,6 +1295,7 @@ void loop()
     while ( (Serial.available() > 0) && serialCnt < 128) {
         serialCnt++;
         in_byte = Serial.read();
+        SysSettings.isWifiActive = false;
         processIncomingByte(in_byte);
     }
 

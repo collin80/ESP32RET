@@ -53,8 +53,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //This keeps the latency more consistent. Otherwise the buffer could partially fill and never send.
 #define SER_BUFF_FLUSH_INTERVAL 50000
 
-#define CFG_BUILD_NUM   350
-#define CFG_VERSION "ESP32RET Alpha Apr 17 2018"
+#define CFG_BUILD_NUM   360
+#define CFG_VERSION "ESP32RET Beta Feb 27 2019"
 #define EEPROM_VER      0x21
 
 #define MARK_LIMIT  6   //# of our analog input pins to use for marking. Defaults to all of them. Send voltage to pin to trigger it
@@ -164,6 +164,7 @@ struct SystemSettings {
     int8_t numBuses; //number of buses this hardware currently supports.
     WiFiClient clientNodes[MAX_CLIENTS];
     boolean isWifiConnected;
+    boolean isWifiActive;
 };
 
 extern EEPROMSettings settings;
