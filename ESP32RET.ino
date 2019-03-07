@@ -58,14 +58,10 @@ uint32_t lastMarkTrigger = 0;
 
 EEPROMSettings settings;
 SystemSettings SysSettings;
-DigitalCANToggleSettings digToggleSettings;
 
 ELM327Emu elmEmulator;
 
 SerialConsole console;
-
-bool digTogglePinState;
-uint8_t digTogglePinCounter;
 
 WiFiMulti wifiMulti;
 WiFiServer wifiServer(23); //Register as a telnet server
@@ -106,7 +102,6 @@ void loadSettings()
         settings.autoStartLogging = false;
         settings.logLevel = 1; //info
         settings.wifiMode = 0; //Wifi defaults to being off
-        settings.wifiServerMode = 0; //Default to TCP/IP Telnet server (serial console works here)
         sprintf((char *)settings.SSID, "ESP32DUE");
         sprintf((char *)settings.WPA2Key, "supersecret");
         settings.sysType = 0; //ESP32Due as default
@@ -117,21 +112,6 @@ void loadSettings()
         Logger::console("Using stored values from EEPROM");
         if (settings.CAN0ListenOnly > 1) settings.CAN0ListenOnly = 0;
         if (settings.CAN1ListenOnly > 1) settings.CAN1ListenOnly = 0;
-    }
-
-    EEPROM.readBytes(512, &digToggleSettings, sizeof(digToggleSettings));
-    if (digToggleSettings.mode == 255) {
-        Logger::console("Resetting digital toggling system to defaults");
-        digToggleSettings.enabled = false;
-        digToggleSettings.length = 0;
-        digToggleSettings.mode = 0;
-        digToggleSettings.pin = 1;
-        digToggleSettings.rxTxID = 0x700;
-        for (int c=0 ; c<8 ; c++) digToggleSettings.payload[c] = 0;
-        EEPROM.writeBytes(512, &digToggleSettings, sizeof(digToggleSettings));
-        EEPROM.commit();
-    } else {
-        Logger::console("Using stored values for digital toggling system");
     }
 
     Logger::setLoglevel((Logger::LogLevel)settings.logLevel);
@@ -213,27 +193,6 @@ void setup()
 */
     Serial.print("Build number: ");
     Serial.println(CFG_BUILD_NUM);
-
-    if (digToggleSettings.enabled) {
-        Serial.println("Digital Toggle System Enabled");
-        if (digToggleSettings.mode & 1) { //input CAN and output pin state mode
-            Serial.println("In Output Mode");
-            pinMode(digToggleSettings.pin, OUTPUT);
-            if (digToggleSettings.mode & 0x80) {
-                digitalWrite(digToggleSettings.pin, LOW);
-                digTogglePinState = false;
-            } else {
-                digitalWrite(digToggleSettings.pin, HIGH);
-                digTogglePinState = true;
-            }
-        } else { //read pin and output CAN mode
-            Serial.println("In Input Mode");
-            pinMode(digToggleSettings.pin, INPUT);
-            digTogglePinCounter = 0;
-            if (digToggleSettings.mode & 0x80) digTogglePinState = false;
-            else digTogglePinState = true;
-        }
-    }
 
     if (settings.CAN0_Enabled) {
         CAN0.enable();
@@ -482,48 +441,6 @@ void sendFrameToFile(CAN_FRAME_FD &frame, int whichBus)
     }
 }
 
-void processDigToggleFrame(CAN_FRAME &frame)
-{
-    bool gotFrame = false;
-    if (digToggleSettings.rxTxID == frame.id) {
-        if (digToggleSettings.length == 0) gotFrame = true;
-        else {
-            gotFrame = true;
-            for (int c = 0; c < digToggleSettings.length; c++) {
-                if (digToggleSettings.payload[c] != frame.data.byte[c]) {
-                    gotFrame = false;
-                    break;
-                }
-            }
-        }
-    }
-
-    if (gotFrame) { //then toggle output pin
-        Logger::console("Got special digital toggle frame. Toggling the output!");
-        digitalWrite(digToggleSettings.pin, digTogglePinState?LOW:HIGH);
-        digTogglePinState = !digTogglePinState;
-    }
-}
-
-void sendDigToggleMsg()
-{
-    CAN_FRAME frame;
-    Serial.println("Got digital input trigger.");
-    frame.id = digToggleSettings.rxTxID;
-    if (frame.id > 0x7FF) frame.extended = true;
-    else frame.extended = false;
-    frame.length = digToggleSettings.length;
-    for (int c = 0; c < frame.length; c++) frame.data.byte[c] = digToggleSettings.payload[c];
-    if (digToggleSettings.mode & 2) {
-        Serial.println("Sending digital toggle message on CAN0");
-        sendFrame(&CAN0, frame);
-    }
-    if (digToggleSettings.mode & 4) {
-        Serial.println("Sending digital toggle message on CAN1");
-        sendFrame(&CAN1, frame);
-    }
-}
-
 /*
 Send a fake frame out USB and maybe to file to show where the mark was triggered at. The fake frame has bits 31 through 3
 set which can never happen in reality since frames are either 11 or 29 bit IDs. So, this is a sign that it is a mark frame
@@ -549,6 +466,7 @@ void processIncomingByte(uint8_t in_byte)
     static int step = 0;
     static STATE state = IDLE;
     static uint32_t build_int;
+    uint32_t busSpeed = 0;
     uint32_t now = micros();
 
     uint8_t temp8;
@@ -780,36 +698,46 @@ void processIncomingByte(uint8_t in_byte)
                 break;
             case 3:
                 build_int |= in_byte << 24;
+                busSpeed = build_int & 0xFFFFF;
+                if(busSpeed > 1000000) busSpeed = 1000000;
+
                 if(build_int > 0)
                 {
-                    if(build_int & 0x80000000){ //signals that enabled and listen only status are also being passed
-                        if(build_int & 0x40000000){
+                    if(build_int & 0x80000000ul) //signals that enabled and listen only status are also being passed
+                    {
+                        if(build_int & 0x40000000ul)
+                        {
                             settings.CAN0_Enabled = true;
-                            CAN0.enable();
-                        } else {
+                        } else 
+                        {
                             settings.CAN0_Enabled = false;
-                            CAN0.disable();
                         }
-                        if(build_int & 0x20000000){
+                        if(build_int & 0x20000000ul)
+                        {
                             settings.CAN0ListenOnly = true;
-                            CAN0.setListenOnlyMode(true);
-                        } else {
+                        } else 
+                        {
                             settings.CAN0ListenOnly = false;
-                            CAN0.setListenOnlyMode(false);
                         }
-                    } else {
-                        CAN0.enable(); //if not using extended status mode then just default to enabling - this was old behavior
+                    } else 
+                    {
+                        //if not using extended status mode then just default to enabling - this was old behavior
                         settings.CAN0_Enabled = true;
                     }
-                    build_int = build_int & 0xFFFFF;
-                    if(build_int > 1000000) build_int = 1000000;
-                    CAN0.begin(build_int, 255);
                     //CAN0.set_baudrate(build_int);
-                    settings.CAN0Speed = build_int;
+                    settings.CAN0Speed = busSpeed;
                 } else { //disable first canbus
-                    CAN0.disable();
                     settings.CAN0_Enabled = false;
                 }
+
+                if (settings.CAN0_Enabled)
+                {
+                    CAN0.begin(settings.CAN0Speed, 255);
+                    if (settings.CAN0ListenOnly) CAN0.setListenOnlyMode(true);
+                    else CAN0.setListenOnlyMode(false);
+                    CAN0.watchFor();
+                }
+                else CAN0.disable();
                 break;
             case 4:
                 build_int = in_byte;
@@ -822,40 +750,46 @@ void processIncomingByte(uint8_t in_byte)
                 break;
             case 7:
                 build_int |= in_byte << 24;
+                busSpeed = build_int & 0xFFFFF;
+                if(busSpeed > 1000000) busSpeed = 1000000;
+
                 if(build_int > 0){
                     if(build_int & 0x80000000){ //signals that enabled and listen only status are also being passed
                         if(build_int & 0x40000000){
                             settings.CAN1_Enabled = true;
-                            CAN1.enable();
                         } else {
                             settings.CAN1_Enabled = false;
-                            CAN1.disable();
                         }
                         if(build_int & 0x20000000){
                             settings.CAN1ListenOnly = true;
-                            CAN1.setListenOnlyMode(true);
                         } else {
                             settings.CAN1ListenOnly = false;
-                            CAN1.setListenOnlyMode(false);
                         }
                     } else {
-                        CAN1.enable(); //if not using extended status mode then just default to enabling - this was old behavior
+                        //if not using extended status mode then just default to enabling - this was old behavior
                         settings.CAN1_Enabled = true;
                     }
-                    build_int = build_int & 0xFFFFF;
-                    if(build_int > 1000000) build_int = 1000000;
-                    CAN1.begin(build_int, 255);
                     //CAN1.set_baudrate(build_int);
-                    settings.CAN1Speed = build_int;
+                    settings.CAN1Speed = busSpeed;
                 } else{ //disable second canbus
-                    CAN1.disable();
                     settings.CAN1_Enabled = false;
                 }
+
+                if (settings.CAN1_Enabled)
+                {
+                    CAN1.begin(settings.CAN1Speed, 255);
+                    delay(2);
+                    if (settings.CAN1ListenOnly) CAN1.setListenOnlyMode(true);
+                    else CAN1.setListenOnlyMode(false);
+                    CAN1.watchFor();
+                }
+                else CAN1.disable();
+
                 state = IDLE;
                 //now, write out the new canbus settings to EEPROM
                 EEPROM.writeBytes(0, &settings, sizeof(settings));
                 EEPROM.commit();
-                setPromiscuousMode();
+                //setPromiscuousMode();
                 break;
             }
             step++;
@@ -944,7 +878,11 @@ void processIncomingByte(uint8_t in_byte)
                 build_int |= in_byte << 24;
                 if(build_int > 0){
                     settings.CAN1FDSpeed = build_int;
-                    if (settings.CAN1_Enabled && settings.CAN1_FDMode) CAN1.beginFD(settings.CAN1Speed, settings.CAN1FDSpeed);
+                    if (settings.CAN1_Enabled && settings.CAN1_FDMode) 
+                    {
+                        CAN1.beginFD(settings.CAN1Speed, settings.CAN1FDSpeed);
+                        CAN1.watchFor();
+                    }
                 } else {
                     //settings.SWCAN_Enabled = false;
                 }
@@ -1030,18 +968,9 @@ void loop()
             }
             if (needServerInit)
             {
-                if (settings.wifiServerMode == 0)
-                {
-                    SysSettings.isWifiConnected = true;
-                    wifiServer.begin();
-                    wifiServer.setNoDelay(true);                    
-                }
-                else
-                {
-                    Serial.println("Starting UDP Server");
-                    SysSettings.isWifiConnected = true;
-                    wifiUDPServer.begin(17222);
-                }
+                SysSettings.isWifiConnected = true;
+                wifiServer.begin();
+                wifiServer.setNoDelay(true);                    
                 ArduinoOTA.setPort(3232);
                 ArduinoOTA.setHostname("ESPRET");
                 // No authentication by default
@@ -1078,80 +1007,63 @@ void loop()
         }
         else
         {
-            if (settings.wifiServerMode == 0)
+            if (WiFi.isConnected() || settings.wifiMode == 2)
             {
-                if (WiFi.isConnected() || settings.wifiMode == 2)
+                if (wifiServer.hasClient())
                 {
-                    if (wifiServer.hasClient())
+                    for(i = 0; i < MAX_CLIENTS; i++)
                     {
-                        for(i = 0; i < MAX_CLIENTS; i++)
+                        if (!SysSettings.clientNodes[i] || !SysSettings.clientNodes[i].connected())
                         {
-                            if (!SysSettings.clientNodes[i] || !SysSettings.clientNodes[i].connected())
+                            if (SysSettings.clientNodes[i]) SysSettings.clientNodes[i].stop();
+                            SysSettings.clientNodes[i] = wifiServer.available();
+                            if (!SysSettings.clientNodes[i]) Serial.println("Couldn't accept client connection!");
+                            else 
                             {
-                                if (SysSettings.clientNodes[i]) SysSettings.clientNodes[i].stop();
-                                SysSettings.clientNodes[i] = wifiServer.available();
-                                if (!SysSettings.clientNodes[i]) Serial.println("Couldn't accept client connection!");
-                                else 
-                                {
-                                    Serial.print("New client: ");
-                                    Serial.print(i); Serial.print(' ');
-                                    Serial.println(SysSettings.clientNodes[i].remoteIP());
-                                }
-                            }
-                        }
-                        if (i >= MAX_CLIENTS) {
-                            //no free/disconnected spot so reject
-                            wifiServer.available().stop();
-                        }
-                    }
-
-                    //check clients for data
-                    for(i = 0; i < MAX_CLIENTS; i++){
-                        if (SysSettings.clientNodes[i] && SysSettings.clientNodes[i].connected())
-                        {
-                            if(SysSettings.clientNodes[i].available())
-                            {
-                                //get data from the telnet client and push it to the UART
-                                while(SysSettings.clientNodes[i].available()) 
-                                {
-                                    uint8_t inByt;
-                                    inByt = SysSettings.clientNodes[i].read();
-                                    SysSettings.isWifiActive = true;
-                                    //Serial.write(inByt); //echo to serial - just for debugging. Don't leave this on!
-                                    processIncomingByte(inByt);
-                                }
-                            }
-                        }
-                        else {
-                            if (SysSettings.clientNodes[i]) {
-                                SysSettings.clientNodes[i].stop();
+                                Serial.print("New client: ");
+                                Serial.print(i); Serial.print(' ');
+                                Serial.println(SysSettings.clientNodes[i].remoteIP());
                             }
                         }
                     }
-                    
+                    if (i >= MAX_CLIENTS) {
+                        //no free/disconnected spot so reject
+                        wifiServer.available().stop();
+                    }
                 }
-                else 
-                {
-                    if (settings.wifiMode == 1)
+
+                //check clients for data
+                for(i = 0; i < MAX_CLIENTS; i++){
+                    if (SysSettings.clientNodes[i] && SysSettings.clientNodes[i].connected())
                     {
+                        if(SysSettings.clientNodes[i].available())
+                        {
+                            //get data from the telnet client and push it to the UART
+                            while(SysSettings.clientNodes[i].available()) 
+                            {
+                                uint8_t inByt;
+                                inByt = SysSettings.clientNodes[i].read();
+                                SysSettings.isWifiActive = true;
+                                //Serial.write(inByt); //echo to serial - just for debugging. Don't leave this on!
+                                processIncomingByte(inByt);
+                            }
+                        }
+                    }
+                    else {
+                        if (SysSettings.clientNodes[i]) {
+                            SysSettings.clientNodes[i].stop();
+                        }
+                    }
+                }                    
+            }
+            else 
+            {
+                if (settings.wifiMode == 1)
+                {
                     Serial.println("WiFi disconnected. Bummer!");
                     SysSettings.isWifiConnected = false;
                     SysSettings.isWifiActive = false;
-                    }
                 }
-            }
-            else if (settings.wifiServerMode == 1) //UDP is connectionless so just see if any traffic showed up
-            {
-              if (wifiUDPServer.parsePacket() > 0)
-              {
-                 uint8_t byt;
-                 while(wifiUDPServer.available())
-                 {
-                     byt = wifiUDPServer.read();
-                     SysSettings.isWifiActive = true;
-                     processIncomingByte(byt);
-                 }
-              }
             }
         }
     }
@@ -1175,33 +1087,6 @@ void loop()
 
     /*if (Serial)*/ isConnected = true;
 
-    //for (int i = 0; i < MARK_LIMIT; i++)
-    //{
-        //if ((lastMarkTrigger + 100) < millis()) //prevent jitter on switch closing
-        //{
-            /*
-            if (M2IO.GetButton_12VIO(i + 1)) {
-    	        if (!markToggle[i]) {
-    		        markToggle[i] = true;
-                    lastMarkTrigger = millis();
-    		        if (!settings.useBinarySerialComm) 
-                    {
-                        Logger::info("MARK %i TRIGGERED", i);
-                    }
-    		        else
-    		        {
-                        sendMarkTriggered(i);
-    		        }
-    	        }
-            }
-            else 
-            {
-                if (markToggle[i]) lastMarkTrigger = millis(); //causes it to also not trigger on jitter when switch opens
-                markToggle[i] = false;
-            } */
-        //}
-    //}
-
     //if (!SysSettings.lawicelMode || SysSettings.lawicelAutoPoll || SysSettings.lawicelPollCounter > 0)
     //{
     if (CAN0.available() > 0) {
@@ -1211,7 +1096,6 @@ void loop()
         toggleRXLED();
         if (isConnected) sendFrameToUSB(incomingFD, 0);
         if (SysSettings.logToFile) sendFrameToFile(incomingFD, 0);
-        if (digToggleSettings.enabled && (digToggleSettings.mode & 1) && (digToggleSettings.mode & 2)) processDigToggleFrame(incoming);
     }
 
     if (CAN1.available() > 0) {
@@ -1228,32 +1112,11 @@ void loop()
         addBits(1, incomingFD);
         toggleRXLED();
         if (isConnected) sendFrameToUSB(incomingFD, 1);
-        if (digToggleSettings.enabled && (digToggleSettings.mode & 1) && (digToggleSettings.mode & 4)) processDigToggleFrame(incoming);
         if (SysSettings.logToFile) sendFrameToFile(incomingFD, 1);
     }
   
     if (SysSettings.lawicelPollCounter > 0) SysSettings.lawicelPollCounter--;
     //}
-
-    if (digToggleSettings.enabled && !(digToggleSettings.mode & 1)) {
-        if (digTogglePinState) { //pin currently high. Look for it going low
-            if (!digitalRead(digToggleSettings.pin)) digTogglePinCounter++; //went low, increment debouncing counter
-            else digTogglePinCounter = 0; //whoops, it bounced or never transitioned, reset counter to 0
-
-            if (digTogglePinCounter > 3) { //transitioned to LOW for 4 checks in a row. We'll believe it then.
-                digTogglePinState = false;
-                sendDigToggleMsg();
-            }
-        } else { //pin currently low. Look for it going high
-            if (digitalRead(digToggleSettings.pin)) digTogglePinCounter++; //went high, increment debouncing counter
-            else digTogglePinCounter = 0; //whoops, it bounced or never transitioned, reset counter to 0
-
-            if (digTogglePinCounter > 3) { //transitioned to HIGH for 4 checks in a row. We'll believe it then.
-                digTogglePinState = true;
-                sendDigToggleMsg();
-            }
-        }
-    }
 
     if (SysSettings.isWifiConnected && micros() - lastBroadcast > 1000000ul) //every second send out a broadcast ping
     {
@@ -1264,26 +1127,18 @@ void loop()
         wifiUDPServer.endPacket();
     }
 
-    //If the max time has passed or the buffer is almost filled then send a frame out
+    //If the max time has passed or the buffer is almost filled then send buffered data out
     if ((micros() - lastFlushMicros > SER_BUFF_FLUSH_INTERVAL) || (serialBufferLength > (WIFI_BUFF_SIZE - 40)) ) {
         if (serialBufferLength > 0) {
             if (settings.wifiMode == 0 || !SysSettings.isWifiActive) Serial.write(serialBuffer, serialBufferLength);
             else
             {
-                if (settings.wifiServerMode == 0)
+                for(i = 0; i < MAX_CLIENTS; i++)
                 {
-                    for(i = 0; i < MAX_CLIENTS; i++){
-                        if (SysSettings.clientNodes[i] && SysSettings.clientNodes[i].connected()){
-                            SysSettings.clientNodes[i].write(serialBuffer, serialBufferLength);
-                        }
+                    if (SysSettings.clientNodes[i] && SysSettings.clientNodes[i].connected())
+                    {
+                        SysSettings.clientNodes[i].write(serialBuffer, serialBufferLength);
                     }
-                }
-                else //UDP broadcast
-                {
-                    //Serial.write('*');
-                    wifiUDPServer.beginPacket(broadcastAddr, 17222);
-                    wifiUDPServer.write(serialBuffer, serialBufferLength);
-                    wifiUDPServer.endPacket();
                 }
             }
             serialBufferLength = 0;
@@ -1303,4 +1158,3 @@ void loop()
     //elmEmulator.loop();
     ArduinoOTA.handle();
 }
-

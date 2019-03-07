@@ -106,7 +106,6 @@ void SerialConsole::printMenu()
     Serial.println();
 
     Logger::console("WIFIMODE=%i - Set mode for WiFi (0 = Wifi Off, 1 = Connect to AP, 2 = Create AP", settings.wifiMode);
-    Logger::console("WIFISRV=%i - Set server mode (0 = TCP/IP Telnet, 1 = UDP Broadcast", settings.wifiServerMode);
     Logger::console("SSID=%s - Set SSID to either connect to or create", (char *)settings.SSID);
     Logger::console("WPA2KEY=%s - Either passphrase or actual key", (char *)settings.WPA2Key);
 
@@ -116,18 +115,6 @@ void SerialConsole::printMenu()
     Logger::console("FILEAPPEND=%i - Append to file (no numbers) or use incrementing numbers after basename (0=Incrementing Numbers, 1=Append)", settings.appendFile);
     Logger::console("FILEAUTO=%i - Automatically start logging at startup (0=No, 1 = Yes)", settings.autoStartLogging);
     Serial.println();
-
-    Logger::console("DIGTOGEN=%i - Enable digital toggling system (0 = Dis, 1 = En)", digToggleSettings.enabled);
-    Logger::console("DIGTOGMODE=%i - Set digital toggle mode (0 = Read pin, send CAN, 1 = Receive CAN, set pin)", digToggleSettings.mode & 1);
-    Logger::console("DIGTOGLEVEL=%i - Set default level of digital pin (0 = LOW, 1 = HIGH)", digToggleSettings.mode >> 7);
-    Logger::console("DIGTOGPIN=%i - Pin to use for digital toggling system (Use Arduino Digital Pin Number)", digToggleSettings.pin);
-    Logger::console("DIGTOGID=%X - CAN ID to use for Rx or Tx", digToggleSettings.rxTxID);
-    Logger::console("DIGTOGCAN0=%i - Use CAN0 with Digital Toggling System? (0 = No, 1 = Yes)", (digToggleSettings.mode >> 1) & 1);
-    Logger::console("DIGTOGCAN1=%i - Use CAN1 with Digital Toggling System? (0 = No, 1 = Yes)", (digToggleSettings.mode >> 2) & 1);
-    Logger::console("DIGTOGLEN=%i - Length of frame to send (Tx) or validate (Rx)", digToggleSettings.length);
-    Logger::console("DIGTOGPAYLOAD=%X,%X,%X,%X,%X,%X,%X,%X - Payload to send or validate against (comma separated list)", digToggleSettings.payload[0],
-                    digToggleSettings.payload[1], digToggleSettings.payload[2], digToggleSettings.payload[3], digToggleSettings.payload[4],
-                    digToggleSettings.payload[5], digToggleSettings.payload[6], digToggleSettings.payload[7]);
 }
 
 /*	There is a help menu (press H or h or ?)
@@ -417,9 +404,6 @@ void SerialConsole::handleLawicelCmd()
     Serial.write(13);
 }
 
-/*For simplicity the configuration setting code uses four characters for each configuration choice. This makes things easier for
- comparison purposes.
- */
 void SerialConsole::handleConfigCmd()
 {
     int i;
@@ -458,7 +442,12 @@ void SerialConsole::handleConfigCmd()
         if (newValue > 1) newValue = 1;
         Logger::console("Setting CAN0 Enabled to %i", newValue);
         settings.CAN0_Enabled = newValue;
-        if (newValue == 1) CAN0.begin(settings.CAN0Speed, 255);
+        if (newValue == 1) 
+        {
+            //CAN0.enable();
+            CAN0.begin(settings.CAN0Speed, 255);
+            CAN0.watchFor();
+        }
         else CAN0.disable();
         writeEEPROM = true;
     } else if (cmdString == String("CAN1EN")) {
@@ -466,8 +455,10 @@ void SerialConsole::handleConfigCmd()
         if (newValue > 1) newValue = 1;
         Logger::console("Setting CAN1 Enabled to %i", newValue);
         if (newValue == 1) {
+            //CAN1.enable();
             if (settings.CAN1_FDMode) CAN1.beginFD(settings.CAN1Speed, settings.CAN1FDSpeed);
             else CAN1.begin(settings.CAN1Speed, 255);
+            CAN1.watchFor();
         }
         else CAN1.disable();
         settings.CAN1_Enabled = newValue;
@@ -595,13 +586,6 @@ void SerialConsole::handleConfigCmd()
         if (newValue == 2) Logger::console("Setting Wifi Mode to Create AP");
         settings.wifiMode = newValue;
         writeEEPROM = true;
-    } else if (cmdString == String("WIFISRV")) {
-        if (newValue < 0) newValue = 0;
-        if (newValue > 1) newValue = 1;
-        if (newValue == 0) Logger::console("Setting Wifi Server Type to TCP/IP Telnet (Port 23)");
-        if (newValue == 1) Logger::console("Setting Wifi Server Type to UDP Port 17222");
-        settings.wifiServerMode = newValue;
-        writeEEPROM = true;
     } else if (cmdString == String("SSID")) {
         Logger::console("Setting SSID to %s", newString);
         strcpy((char *)settings.SSID, newString);
@@ -646,73 +630,6 @@ void SerialConsole::handleConfigCmd()
             writeEEPROM = true;
             Logger::console("System type updated. Power cycle to apply.");
         } else Logger::console("Invalid system type. Please enter a value between 0 and 0. Yes, just 0");
-    } else if (cmdString == String("DIGTOGEN")) {
-        if (newValue >= 0 && newValue <= 1) {
-            Logger::console("Setting Digital Toggle System Enable to %i", newValue);
-            digToggleSettings.enabled = newValue;
-            writeDigEE = true;
-        } else Logger::console("Invalid enable value. Must be either 0 or 1");
-    } else if (cmdString == String("DIGTOGMODE")) {
-        if (newValue >= 0 && newValue <= 1) {
-            Logger::console("Setting Digital Toggle Mode to %i", newValue);
-            if (newValue == 0) digToggleSettings.mode &= ~1;
-            if (newValue == 1) digToggleSettings.mode |= 1;
-            writeDigEE = true;
-        } else Logger::console("Invalid mode. Must be either 0 or 1");
-    } else if (cmdString == String("DIGTOGLEVEL")) {
-        if (newValue >= 0 && newValue <= 1) {
-            Logger::console("Setting Digital Toggle Starting Level to %i", newValue);
-            if (newValue == 0) digToggleSettings.mode &= ~0x80;
-            if (newValue == 1) digToggleSettings.mode |= 0x80;
-            writeDigEE = true;
-        } else Logger::console("Invalid default level. Must be either 0 or 1");
-    } else if (cmdString == String("DIGTOGPIN")) {
-        if (newValue >= 0 && newValue <= 77) {
-            Logger::console("Setting Digital Toggle Pin to %i", newValue);
-            digToggleSettings.pin = newValue;
-            writeDigEE = true;
-        } else Logger::console("Invalid pin. Must be between 0 and 77");
-    } else if (cmdString == String("DIGTOGID")) {
-        if (newValue >= 0 && newValue < (1 << 30)) {
-            Logger::console("Setting Digital Toggle CAN ID to %X", newValue);
-            digToggleSettings.rxTxID = newValue;
-            writeDigEE = true;
-        } else Logger::console("Invalid CAN ID. Must be either an 11 or 29 bit ID");
-    } else if (cmdString == String("DIGTOGCAN0")) {
-        if (newValue >= 0 && newValue <= 1) {
-            Logger::console("Setting Digital Toggle CAN0 Usage to %i", newValue);
-            if (newValue == 0) digToggleSettings.mode &= ~2;
-            if (newValue == 1) digToggleSettings.mode |= 2;
-            writeDigEE = true;
-        } else Logger::console("Invalid value. Must be either 0 or 1");
-    } else if (cmdString == String("DIGTOGCAN1")) {
-        if (newValue >= 0 && newValue <= 1) {
-            Logger::console("Setting Digital Toggle CAN1 Usage to %i", newValue);
-            if (newValue == 0) digToggleSettings.mode &= ~4;
-            if (newValue == 1) digToggleSettings.mode |= 4;
-            writeDigEE = true;
-        } else Logger::console("Invalid value. Must be either 0 or 1");
-    } else if (cmdString == String("DIGTOGLEN")) {
-        if (newValue >= 0 && newValue <= 8) {
-            Logger::console("Setting Digital Toggle Frame Length to %i", newValue);
-            digToggleSettings.length = newValue;
-            writeDigEE = true;
-        } else Logger::console("Invalid length. Must be between 0 and 8");
-    } else if (cmdString == String("DIGTOGPAYLOAD")) {
-        dataTok = strtok(newString, ",");
-        if (dataTok) {
-            digToggleSettings.payload[0] = strtol(dataTok, NULL, 0);
-            i = 1;
-            while (i < 8 && dataTok) {
-                dataTok = strtok(NULL, ",");
-                if (dataTok) {
-                    digToggleSettings.payload[i] = strtol(dataTok, NULL, 0);
-                    i += 1;
-                }
-            }
-            writeDigEE = true;
-            Logger::console("Set new payload bytes");
-        } else Logger::console("Error processing payload");
     } else if (cmdString == String("LOGLEVEL")) {
         switch (newValue) {
         case 0:
@@ -752,10 +669,6 @@ void SerialConsole::handleConfigCmd()
     }
     if (writeEEPROM) {
         EEPROM.writeBytes(0, &settings, sizeof(settings));
-        EEPROM.commit();
-    }
-    if (writeDigEE) {
-        EEPROM.writeBytes(512, &digToggleSettings, sizeof(digToggleSettings));
         EEPROM.commit();
     }
 }
