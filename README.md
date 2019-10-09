@@ -9,11 +9,14 @@ A fork of the M2RET project, itself a fork of the GVRET project.
 
 You will need the following to be able to compile the run this project:
 
-- [Arduino IDE](https://www.arduino.cc/en/Main/Software) Tested on 1.8.4
+- [Arduino IDE](https://www.arduino.cc/en/Main/Software) Tested on 1.8.10
 - [Arduino-ESP32](https://github.com/espressif/arduino-esp32) - Allows for programming the ESP32 with the Arduino IDE
 - [esp32_can](https://github.com/collin80/esp32_can) - A unified CAN library that supports the built-in CAN plus MCP2515 and MCP2517FD
+- [can_common](https://github.com/collin80/can_common) - Common structures and functionality for CAN libraries
 
-All libraries belong in %USERPROFILE%\Documents\Arduino\hardware\esp32\libraries (Windows) or ~/Arduino/hardware/esp32/libraries (Linux/Mac).
+All libraries belong in %USERPROFILE%\Documents\Arduino\libraries (Windows) or ~/Arduino/libraries (Linux/Mac).
+
+Note that in order to upload/program the firmware, you'll need to hold down the 'BOOT' button on the ESP32 CANDue board while connecting.
 
 The canbus is supposed to be terminated on both ends of the bus. This should not be a problem as this firmware will be used to reverse engineer existing buses. However, do note that CAN buses should have a resistance from CAN_H to CAN_L of 60 ohms. This is affected by placing a 120 ohm resistor on both sides of the bus. If the bus resistance is not fairly close to 60 ohms then you may run into trouble.  
 
