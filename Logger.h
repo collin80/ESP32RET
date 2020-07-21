@@ -41,8 +41,6 @@ public:
     static void warn(const char *, ...);
     static void error(const char *, ...);
     static void console(const char *, ...);
-    static void file(const char *, ...);
-    static void fileRaw(uint8_t*, int);
     static void setLoglevel(LogLevel);
     static LogLevel getLogLevel();
     static uint32_t getLastLogTime();
@@ -51,16 +49,9 @@ public:
 private:
     static LogLevel logLevel;
     static uint32_t lastLogTime;
-    static uint8_t filebuffer[BUF_SIZE]; //size of buffer for file output
-    static uint16_t fileBuffWritePtr;
-    static uint32_t lastWriteTime;
 
     static void log(LogLevel, const char *format, va_list);
     static void logMessage(const char *format, va_list args);
-    static void buffPutChar(char c);
-    static void buffPutString(const char *c);
-    static boolean setupFile();
-    static void flushFileBuff();
 };
 
 #endif /* LOGGER_H_ */

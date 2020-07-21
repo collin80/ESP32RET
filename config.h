@@ -32,30 +32,25 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
-#include "esp32_can.h"
 #include <WiFi.h>
+#include <Preferences.h>
 
-//buffer size for SDCard - Sending canbus data to the card.
-//This is a large buffer but the sketch may as well use up a lot of RAM. It's there.
-//This value is picked up by the SD card library and not directly used in the GVRET code.
-#define BUF_SIZE    512
-
-//size to use for buffering writes to the USB bulk endpoint
-//This is, however, directly used.
-#define SER_BUFF_SIZE       512
+//size to use for buffering writes to USB. On the ESP32 we're actually talking TTL serial to a TTL<->USB chip
+#define SER_BUFF_SIZE       1024
 
 //Buffer for CAN frames when sending over wifi. This allows us to build up a multi-frame packet that goes
 //over the air all at once. This is much more efficient than trying to send a new TCP/IP packet for each and every
 //frame. It delays frames from getting to the other side a bit but that's life.
+//Probably don't set this over 2048 as the default packet size for wifi is 2312 including all overhead.
 #define WIFI_BUFF_SIZE      2048
 
 //Number of microseconds between hard flushes of the serial buffer (if not in wifi mode) or the wifi buffer (if in wifi mode)
 //This keeps the latency more consistent. Otherwise the buffer could partially fill and never send.
-#define SER_BUFF_FLUSH_INTERVAL 50000
+#define SER_BUFF_FLUSH_INTERVAL 20000
 
-#define CFG_BUILD_NUM   362
-#define CFG_VERSION "ESP32RET Beta Mar 06 2019"
-#define EEPROM_VER      0x21
+#define CFG_BUILD_NUM   616
+#define CFG_VERSION "A0RET Alpha June 20 2020"
+#define PREF_NAME   "A0RET"
 
 #define MARK_LIMIT  6   //# of our analog input pins to use for marking. Defaults to all of them. Send voltage to pin to trigger it
 
@@ -63,7 +58,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define NUM_DIGITAL 6   // Not currently using digital pins on the ESP32
 #define NUM_OUTPUT  6   // Ditto
 
-#define NUM_BUSES   2   //number of buses possible on this hardware - CAN0, CAN1
+#define NUM_BUSES   2   //max # of buses supported by any of the supported boards
 
 //It's not even used on this hardware currently. But, slows down the blinks to make them more visible
 #define BLINK_SLOWNESS  100 
@@ -78,50 +73,32 @@ struct FILTER {  //should be 10 bytes
     boolean enabled;
 };
 
-enum FILEOUTPUTTYPE {
-    NONE = 0,
-    BINARYFILE = 1,
-    GVRET = 2,
-    CRTD = 3
-};
-
 struct EEPROMSettings {
-    uint8_t version;
-
     uint32_t CAN0Speed;
-    uint32_t CAN1Speed;
-    uint32_t CAN1FDSpeed;
     boolean CAN0_Enabled;
+    boolean CAN0ListenOnly; //if true we don't allow any messing with the bus but rather just passively monitor.
+
+    uint32_t CAN1Speed;
     boolean CAN1_Enabled;
-    boolean CAN1_FDMode;
+    boolean CAN1ListenOnly;
 
     boolean useBinarySerialComm; //use a binary protocol on the serial link or human readable format?
-    FILEOUTPUTTYPE fileOutputType; //what format should we use for file output?
-
-    char fileNameBase[30]; //Base filename to use
-    char fileNameExt[4]; //extension to use
-    uint16_t fileNum; //incrementing value to append to filename if we create a new file each time
-    boolean appendFile; //start a new file every power up or append to current?
-    boolean autoStartLogging; //should logging start immediately on start up?
 
     uint8_t logLevel; //Level of logging to output on serial line
-    uint8_t sysType; 
+    uint8_t systemType; //0 = A0RET, 1 = EVTV ESP32 Board, maybe others in the future
+    
+    boolean enableBT; //are we enabling bluetooth too?
+    char btName[32];
 
-    uint16_t valid; //stores a validity token to make sure EEPROM is not corrupt
-
-    boolean CAN0ListenOnly; //if true we don't allow any messing with the bus but rather just passively monitor.
-    boolean CAN1ListenOnly;
+    boolean enableLawicel;
 
     //if we're using WiFi then output to serial is disabled (it's far too slow to keep up)  
     uint8_t wifiMode; //0 = don't use wifi, 1 = connect to an AP, 2 = Create an AP
-    uint8_t SSID[32];     //null terminated string for the SSID
-    uint8_t WPA2Key[64]; //Null terminated string for the key. Can be a passphase or the actual key
+    char SSID[32];     //null terminated string for the SSID
+    char WPA2Key[64]; //Null terminated string for the key. Can be a passphase or the actual key
 };
 
 struct SystemSettings {
-    boolean useSD; //should we attempt to use the SDCard? (No logging possible otherwise)
-    boolean logToFile; //are we currently supposed to be logging to file?
-    boolean SDCardInserted;
     uint8_t LED_CANTX;
     uint8_t LED_CANRX;
     uint8_t LED_LOGGING;
@@ -140,7 +117,20 @@ struct SystemSettings {
     boolean isWifiActive;
 };
 
+class GVRET_Comm_Handler;
+class SerialConsole;
+class CANManager;
+class LAWICELHandler;
+class ELM327Emu;
+
 extern EEPROMSettings settings;
 extern SystemSettings SysSettings;
+extern Preferences nvPrefs;
+extern GVRET_Comm_Handler serialGVRET;
+extern GVRET_Comm_Handler wifiGVRET;
+extern SerialConsole console;
+extern CANManager canManager;
+extern LAWICELHandler lawicel;
+extern ELM327Emu elmEmulator;
 
 #endif /* CONFIG_H_ */

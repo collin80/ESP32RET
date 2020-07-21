@@ -1,7 +1,7 @@
 /*
- * ESP32RET.h
+ * A0RET.h
  *
-Copyright (c) 2013-2018 Collin Kidder, Michael Neuweiler, Charles Galpin
+Copyright (c) 2013-2020 Collin Kidder, Michael Neuweiler
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -24,59 +24,13 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
  */
 
-#ifndef GVRET_H_
-#define GVRET_H_
+#pragma once
 
 #include <Arduino.h>
 #include "esp32_can.h"
 #include "sys_io.h"
 
-enum STATE {
-    IDLE,
-    GET_COMMAND,
-    BUILD_CAN_FRAME,
-    TIME_SYNC,
-    GET_DIG_INPUTS,
-    GET_ANALOG_INPUTS,
-    SET_DIG_OUTPUTS,
-    SETUP_CANBUS,
-    GET_CANBUS_PARAMS,
-    GET_DEVICE_INFO,
-    SET_SINGLEWIRE_MODE,
-    SET_SYSTYPE,
-    ECHO_CAN_FRAME,
-    SETUP_EXT_BUSES
-};
-
-enum GVRET_PROTOCOL
-{
-    PROTO_BUILD_CAN_FRAME = 0,
-    PROTO_TIME_SYNC = 1,
-    PROTO_DIG_INPUTS = 2,
-    PROTO_ANA_INPUTS = 3,
-    PROTO_SET_DIG_OUT = 4,
-    PROTO_SETUP_CANBUS = 5,
-    PROTO_GET_CANBUS_PARAMS = 6,
-    PROTO_GET_DEV_INFO = 7,
-    PROTO_SET_SW_MODE = 8,
-    PROTO_KEEPALIVE = 9,
-    PROTO_SET_SYSTYPE = 10,
-    PROTO_ECHO_CAN_FRAME = 11,
-    PROTO_GET_NUMBUSES = 12,
-    PROTO_GET_EXT_BUSES = 13,
-    PROTO_SET_EXT_BUSES = 14
-};
-
 void loadSettings();
-void setSWCANSleep();
-void setSWCANEnabled();
-void setSWCANWakeup();
 void processDigToggleFrame(CAN_FRAME &frame);
 void sendDigToggleMsg();
 void sendMarkTriggered(int which);
-
-#endif /* GVRET_H_ */
-
-
-
-

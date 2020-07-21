@@ -128,3 +128,25 @@ void setLED(uint8_t which, boolean hi){
         digitalWrite(which, LOW);
     }
 }
+
+void toggleRXLED()
+{
+    static int counter = 0;
+    counter++;
+    if (counter >= BLINK_SLOWNESS) {
+        counter = 0;
+        SysSettings.rxToggle = !SysSettings.rxToggle;
+        setLED(SysSettings.LED_CANRX, SysSettings.rxToggle);
+    }
+}
+
+void toggleTXLED()
+{
+    static int counter = 0;
+    counter++;
+    if (counter >= BLINK_SLOWNESS) {
+        counter = 0;
+        SysSettings.txToggle = !SysSettings.txToggle;
+        setLED(SysSettings.LED_CANTX, SysSettings.txToggle);
+    }
+}

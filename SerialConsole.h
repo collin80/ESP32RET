@@ -45,8 +45,7 @@ protected:
     };
 
 private:
-    char cmdBuffer[80];
-    char tokens[14][10];
+    char cmdBuffer[80];    
     int ptrBuffer;
     int state;
 
@@ -54,16 +53,9 @@ private:
     void handleConsoleCmd();
     void handleShortCmd();
     void handleConfigCmd();
-    void handleLawicelCmd();
     bool handleFilterSet(uint8_t bus, uint8_t filter, char *values);
     bool handleCANSend(CAN_COMMON &port, char *inputString);
     bool handleSWCANSend(char *inputString);
-    unsigned int parseHexCharacter(char chr);
-    unsigned int parseHexString(char *str, int length);
-    void tokenizeCmdString();
-    void uppercaseToken(char *token);
-    bool parseLawicelCANCmd(CAN_FRAME &frame);
 };
 
 #endif /* SERIALCONSOLE_H_ */
-

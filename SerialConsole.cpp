@@ -31,9 +31,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <esp32_can.h>
-#include "EEPROM.h"
+#include <Preferences.h>
 #include "config.h"
 #include "sys_io.h"
+#include "lawicel.h"
 
 extern void CANHandler();
 
@@ -68,8 +69,8 @@ void SerialConsole::printMenu()
     Serial.println("Config Commands (enter command=newvalue). Current values shown in parenthesis:");
     Serial.println();
 
+    Logger::console("SYSTYPE=%i - Set board type (0 = Macchina A0, 1 = EVTV ESP32 Board", settings.systemType);
     Logger::console("LOGLEVEL=%i - set log level (0=debug, 1=info, 2=warn, 3=error, 4=off)", settings.logLevel);
-    Logger::console("SYSTYPE=%i - set board type (0=EVTV ESP32Due)", settings.sysType);
     Serial.println();
 
     Logger::console("CAN0EN=%i - Enable/Disable CAN0 (0 = Disable, 1 = Enable)", settings.CAN0_Enabled);
@@ -82,39 +83,38 @@ void SerialConsole::printMenu()
     }*/
     Serial.println();
 
-    Logger::console("CAN1EN=%i - Enable/Disable CAN1 (0 = Disable, 1 = Enable)", settings.CAN1_Enabled);
-    Logger::console("CAN1SPEED=%i - Set speed of CAN1 in baud (125000, 250000, etc)", settings.CAN1Speed);
-    Logger::console("CAN1FDSPEED=%i - Set speed of CAN1 FD Data (1000000 - 8000000)", settings.CAN1FDSpeed);
-    Logger::console("CAN1FDMODE=%i - Set whether to use CAN-FD Mode (0 = FD Off, 1 = Use FD Mode)", settings.CAN1_FDMode);
-    Logger::console("CAN1LISTENONLY=%i - Enable/Disable Listen Only Mode (0 = Dis, 1 = En)", settings.CAN1ListenOnly);
-    /*
-    for (int i = 0; i < 8; i++) {
-        sprintf(buff, "CAN1FILTER%i=0x%%x,0x%%x,%%i,%%i (ID, Mask, Extended, Enabled)", i);
-        Logger::console(buff, settings.CAN1Filters[i].id, settings.CAN1Filters[i].mask,
-                        settings.CAN1Filters[i].extended, settings.CAN1Filters[i].enabled);
-    }*/
-    
-    Serial.println();
+    if (settings.systemType != 0)
+    {
+        Logger::console("CAN1EN=%i - Enable/Disable CAN0 (0 = Disable, 1 = Enable)", settings.CAN1_Enabled);
+        Logger::console("CAN1SPEED=%i - Set speed of CAN0 in baud (125000, 250000, etc)", settings.CAN1Speed);
+        Logger::console("CAN1LISTENONLY=%i - Enable/Disable Listen Only Mode (0 = Dis, 1 = En)", settings.CAN1ListenOnly);
+        /*for (int i = 0; i < 8; i++) {
+            sprintf(buff, "CAN0FILTER%i=0x%%x,0x%%x,%%i,%%i (ID, Mask, Extended, Enabled)", i);
+            Logger::console(buff, settings.CAN0Filters[i].id, settings.CAN0Filters[i].mask,
+                        settings.CAN0Filters[i].extended, settings.CAN0Filters[i].enabled);
+        }*/
+        Serial.println();
+    }
 
     Logger::console("CAN0SEND=ID,LEN,<BYTES SEPARATED BY COMMAS> - Ex: CAN0SEND=0x200,4,1,2,3,4");
-    Logger::console("CAN1SEND=ID,LEN,<BYTES SEPARATED BY COMMAS> - Ex: CAN1SEND=0x200,8,00,00,00,10,0xAA,0xBB,0xA0,00");
+    if (settings.systemType !=0)
+        Logger::console("CAN1SEND=ID,LEN,<BYTES SEPARATED BY COMMAS> - Ex: CAN1SEND=0x200,4,1,2,3,4");
     Logger::console("MARK=<Description of what you are doing> - Set a mark in the log file about what you are about to do.");
     Serial.println();
 
     Logger::console("BINSERIAL=%i - Enable/Disable Binary Sending of CANBus Frames to Serial (0=Dis, 1=En)", settings.useBinarySerialComm);
-    Logger::console("FILETYPE=%i - Set type of file output (0=None, 1 = Binary, 2 = GVRET, 3 = CRTD)", settings.fileOutputType);
+    Serial.println();
+
+    Logger::console("BTMODE=%i - Set mode for Bluetooth (0 = Off, 1 = On)", settings.enableBT);
+    Logger::console("BTNAME=%s - Set advertised Bluetooth name", settings.btName);
+    Serial.println();
+
+    Logger::console("LAWICEL=%i - Set whether to accept LAWICEL commands (0 = Off, 1 = On)", settings.enableLawicel);
     Serial.println();
 
     Logger::console("WIFIMODE=%i - Set mode for WiFi (0 = Wifi Off, 1 = Connect to AP, 2 = Create AP", settings.wifiMode);
     Logger::console("SSID=%s - Set SSID to either connect to or create", (char *)settings.SSID);
     Logger::console("WPA2KEY=%s - Either passphrase or actual key", (char *)settings.WPA2Key);
-
-    Logger::console("FILEBASE=%s - Set filename base for saving", (char *)settings.fileNameBase);
-    Logger::console("FILEEXT=%s - Set filename ext for saving", (char *)settings.fileNameExt);
-    Logger::console("FILENUM=%i - Set incrementing number for filename", settings.fileNum);
-    Logger::console("FILEAPPEND=%i - Append to file (no numbers) or use incrementing numbers after basename (0=Incrementing Numbers, 1=Append)", settings.appendFile);
-    Logger::console("FILEAUTO=%i - Automatically start logging at startup (0=No, 1 = Yes)", settings.autoStartLogging);
-    Serial.println();
 }
 
 /*	There is a help menu (press H or h or ?)
@@ -143,16 +143,14 @@ void SerialConsole::handleConsoleCmd()
         } else { //at least two bytes
             boolean equalSign = false;
             for (int i = 0; i < ptrBuffer; i++) if (cmdBuffer[i] == '=') equalSign = true;
+            cmdBuffer[ptrBuffer] = 0; //make sure to null terminate
             if (equalSign) handleConfigCmd();
-            else handleLawicelCmd(); //single letter lawicel commands handled in handleShortCmd though.
+            else if (settings.enableLawicel) lawicel.handleLongCmd(cmdBuffer);
         }
         ptrBuffer = 0; //reset line counter once the line has been processed
     }
 }
 
-/*
-LAWICEL single letter commands are now mixed in with the other commands here.
-*/
 void SerialConsole::handleShortCmd()
 {
     uint8_t val;
@@ -165,243 +163,15 @@ void SerialConsole::handleShortCmd()
         printMenu();
         break;
     case 'R': //reset to factory defaults.
-        settings.version = 0xFF;
-        EEPROM.writeBytes(0, &settings, sizeof(settings));
+        nvPrefs.begin(PREF_NAME, false);
+        nvPrefs.clear();
+        nvPrefs.end();        
         Logger::console("Power cycle to reset to factory defaults");
         break;
-    case 's': //start logging canbus to file
-        Logger::console("Starting logging to file.");
-        SysSettings.logToFile = true;
-        break;
-    case 'S': //stop logging canbus to file
-        Logger::console("Ceasing file logging.");
-        SysSettings.logToFile = false;
-        break;
-        
-    //Lawicel specific commands    
-    case 'O': //LAWICEL open canbus port (first one only because LAWICEL has no concept of dual canbus
-        CAN0.setListenOnlyMode(false);
-        CAN0.begin(settings.CAN0Speed, 255);
-        CAN0.enable();
-        Serial.write(13); //send CR to mean "ok"
-        SysSettings.lawicelMode = true;
-        break;
-    case 'C': //LAWICEL close canbus port (First one)
-        CAN0.disable();
-        Serial.write(13); //send CR to mean "ok"
-        break;
-    case 'L': //LAWICEL open canbus port in listen only mode
-        CAN0.setListenOnlyMode(true);
-        CAN0.begin(settings.CAN0Speed, 255);        
-        CAN0.enable();
-        Serial.write(13); //send CR to mean "ok"
-        SysSettings.lawicelMode = true;
-        break;
-    case 'P': //LAWICEL - poll for one waiting frame. Or, just CR if no frames
-        if (CAN0.available()) SysSettings.lawicelPollCounter = 1;
-        else Serial.write(13); //no waiting frames
-        break;
-    case 'A': //LAWICEL - poll for all waiting frames - CR if no frames
-        SysSettings.lawicelPollCounter = CAN0.available();
-        if (SysSettings.lawicelPollCounter == 0) Serial.write(13);
-        break;
-    case 'F': //LAWICEL - read status bits
-        Serial.print("F00"); //bit 0 = RX Fifo Full, 1 = TX Fifo Full, 2 = Error warning, 3 = Data overrun, 5= Error passive, 6 = Arb. Lost, 7 = Bus Error
-        Serial.write(13);
-        break;
-    case 'V': //LAWICEL - get version number
-        Serial.print("V1013\n");
-        SysSettings.lawicelMode = true;
-        break;
-    case 'N': //LAWICEL - get serial number
-        Serial.print("ESP32RET\n");
-        SysSettings.lawicelMode = true;
-        break;
-    case 'x':
-        SysSettings.lawicellExtendedMode = !SysSettings.lawicellExtendedMode;
-        if (SysSettings.lawicellExtendedMode) {
-            Serial.print("V2\n");
-        }
-        else {
-            Serial.print("LAWICEL\n");
-        }            
-        break;
-    case 'B': //LAWICEL V2 - Output list of supported buses
-        if (SysSettings.lawicellExtendedMode) {
-            for (int i = 0; i < NUM_BUSES; i++) {
-                printBusName(i);
-                Serial.print("\n");
-            }
-        }
-        break;
-    case 'X':
-        if (SysSettings.lawicellExtendedMode) {
-        }
-        break;        
-    }
-}
-
-void SerialConsole::handleLawicelCmd()
-{
-    cmdBuffer[ptrBuffer] = 0; //make sure to null terminate
-    CAN_FRAME outFrame;
-    char buff[80];
-    int val;
-    
-    tokenizeCmdString();
-
-    switch (cmdBuffer[0]) {
-    case 't': //transmit standard frame
-        outFrame.id = parseHexString(cmdBuffer + 1, 3);
-        outFrame.length = cmdBuffer[4] - '0';
-        outFrame.extended = false;
-        if (outFrame.length < 0) outFrame.length = 0;
-        if (outFrame.length > 8) outFrame.length = 8;
-        for (int data = 0; data < outFrame.length; data++) {
-            outFrame.data.bytes[data] = parseHexString(cmdBuffer + 5 + (2 * data), 2);
-        }
-        CAN0.sendFrame(outFrame);
-        if (SysSettings.lawicelAutoPoll) Serial.print("z");
-        break;
-    case 'T': //transmit extended frame
-        outFrame.id = parseHexString(cmdBuffer + 1, 8);
-        outFrame.length = cmdBuffer[9] - '0';
-        outFrame.extended = false;
-        if (outFrame.length < 0) outFrame.length = 0;
-        if (outFrame.length > 8) outFrame.length = 8;
-        for (int data = 0; data < outFrame.length; data++) {
-            outFrame.data.bytes[data] = parseHexString(cmdBuffer + 10 + (2 * data), 2);
-        }
-        CAN0.sendFrame(outFrame);
-        if (SysSettings.lawicelAutoPoll) Serial.print("Z");
-        break;
-    case 'S': 
-        if (!SysSettings.lawicellExtendedMode) {
-            //setup canbus baud via predefined speeds
-            val = parseHexCharacter(cmdBuffer[1]);
-            switch (val) {
-            case 0:
-                settings.CAN0Speed = 10000;
-                break;
-            case 1:
-                settings.CAN0Speed = 20000;
-                break;
-            case 2:
-                settings.CAN0Speed = 50000;
-                break;
-            case 3:
-                settings.CAN0Speed = 100000;
-                break;
-            case 4:
-                settings.CAN0Speed = 125000;
-                break;
-            case 5:
-                settings.CAN0Speed = 250000;
-                break;
-            case 6:
-                settings.CAN0Speed = 500000;
-                break;
-            case 7:
-                settings.CAN0Speed = 800000;
-                break;
-            case 8:
-                settings.CAN0Speed = 1000000;
-                break;
-            }
-        }
-        else { //LAWICEL V2 - Send packet out of specified bus - S <Bus> <ID> <Data0> <Data1> <...>
-            uint8_t bytes[8];
-            uint32_t id;
-            int numBytes = 0;
-            id = strtol(tokens[2], nullptr, 16);
-            for (int b = 0; b < 8; b++) {
-                if (tokens[3 + b][0] != 0) {
-                    bytes[b] = strtol(tokens[3 + b], nullptr, 16);
-                    numBytes++;
-                }
-                else break; //break for loop because we're obviously done.
-            }
-            if (!strcasecmp(tokens[1], "CAN0")) {
-                CAN_FRAME outFrame;
-                outFrame.id = id;
-                outFrame.length = numBytes;
-                outFrame.extended = false;
-                for (int b = 0; b < numBytes; b++) outFrame.data.bytes[b] = bytes[b];
-                CAN0.sendFrame(outFrame);
-            }
-            if (!strcasecmp(tokens[1], "CAN1")) {
-                CAN_FRAME outFrame;
-                outFrame.id = id;
-                outFrame.length = numBytes;
-                outFrame.extended = false;
-                for (int b = 0; b < numBytes; b++) outFrame.data.bytes[b] = bytes[b];
-                CAN1.sendFrame(outFrame);                
-            }
-        }
-    case 's': //setup canbus baud via register writes (we can't really do that...)
-        //settings.CAN0Speed = 250000;
-        break;
-    case 'r': //send a standard RTR frame (don't really... that's so deprecated its not even funny)
-        break;
-    case 'R': 
-        if (SysSettings.lawicellExtendedMode) { //Lawicel V2 - Set that we want to receive traffic from the given bus - R <BUSID>
-            if (!strcasecmp(tokens[1], "CAN0")) SysSettings.lawicelBusReception[0] = true;
-            if (!strcasecmp(tokens[1], "CAN1")) SysSettings.lawicelBusReception[1] = true; 
-        }
-        else { //Lawicel V1 - send extended RTR frame (NO! DON'T DO IT!)
-        }
-        break;
-    case 'X': //Set autopoll off/on
-        if (cmdBuffer[1] == '1') SysSettings.lawicelAutoPoll = true;
-        else SysSettings.lawicelAutoPoll = false;
-        break;
-    case 'W': //Dual or single filter mode
-        break; //don't actually support this mode
-    case 'm': //set acceptance mask - these things seem to be odd and aren't actually implemented yet
-    case 'M': 
-        if (SysSettings.lawicellExtendedMode) { //Lawicel V2 - Set filter mask - M <busid> <Mask> <FilterID> <Ext?>
-            int mask = strtol(tokens[2], nullptr, 16);
-            int filt = strtol(tokens[3], nullptr, 16);
-            if (!strcasecmp(tokens[1], "CAN0")) {
-                if (!strcasecmp(tokens[4], "X")) CAN0.setRXFilter(0, filt, mask, true);
-                    else CAN0.setRXFilter(0, filt, mask, false);
-            }           
-            if (!strcasecmp(tokens[1], "CAN1")) {
-                if (!strcasecmp(tokens[4], "X")) CAN1.setRXFilter(0, filt, mask, true);
-                    else CAN1.setRXFilter(0, filt, mask, false);                
-            }
-        }
-        else { //Lawicel V1 - set acceptance code
-        }        
-        break;
-    case 'H':
-        if (SysSettings.lawicellExtendedMode) { //Lawicel V2 - Halt reception of traffic from given bus - H <busid>
-            if (!strcasecmp(tokens[1], "CAN0")) SysSettings.lawicelBusReception[0] = false;
-            if (!strcasecmp(tokens[1], "CAN1")) SysSettings.lawicelBusReception[1] = false; 
-        } 
-        break;        
-    case 'U': //set uart speed. We just ignore this. You can't set a baud rate on a USB CDC port
-        break; //also no action here
-    case 'Z': //Turn timestamp off/on
-        if (cmdBuffer[1] == '1') SysSettings.lawicelTimestamping = true;
-        else SysSettings.lawicelTimestamping =  false;
-        break;
-    case 'Q': //turn auto start up on/off - probably don't need to actually implement this at the moment.
-        break; //no action yet or maybe ever
-    case 'C': //Lawicel V2 - configure one of the buses - C <busid> <speed> <any additional needed params> 
-        if (SysSettings.lawicellExtendedMode) {
-            //at least two parameters separated by spaces. First BUS ID (CAN0, CAN1, SWCAN, etc) then speed (or more params separated by #'s)
-            int speed = atoi(tokens[2]);
-            if (!strcasecmp(tokens[1], "CAN0")) {
-                CAN0.begin(speed, 255);
-            }           
-            if (!strcasecmp(tokens[1], "CAN1")) {
-                CAN1.begin(speed, 255);
-            }
-        }
+    default:
+        if (settings.enableLawicel) lawicel.handleShortCmd(cmdBuffer[0]);
         break;
     }
-    Serial.write(13);
 }
 
 void SerialConsole::handleConfigCmd()
@@ -450,19 +220,6 @@ void SerialConsole::handleConfigCmd()
         }
         else CAN0.disable();
         writeEEPROM = true;
-    } else if (cmdString == String("CAN1EN")) {
-        if (newValue < 0) newValue = 0;
-        if (newValue > 1) newValue = 1;
-        Logger::console("Setting CAN1 Enabled to %i", newValue);
-        if (newValue == 1) {
-            //CAN1.enable();
-            if (settings.CAN1_FDMode) CAN1.beginFD(settings.CAN1Speed, settings.CAN1FDSpeed);
-            else CAN1.begin(settings.CAN1Speed, 255);
-            CAN1.watchFor();
-        }
-        else CAN1.disable();
-        settings.CAN1_Enabled = newValue;
-        writeEEPROM = true;
     } else if (cmdString == String("CAN0SPEED")) {
         if (newValue > 0 && newValue <= 1000000) {
             Logger::console("Setting CAN0 Baud Rate to %i", newValue);
@@ -470,37 +227,6 @@ void SerialConsole::handleConfigCmd()
             if (settings.CAN0_Enabled) CAN0.begin(settings.CAN0Speed, 255);
             writeEEPROM = true;
         } else Logger::console("Invalid baud rate! Enter a value 1 - 1000000");
-    } else if (cmdString == String("CAN1SPEED")) {
-        if (newValue > 0 && newValue <= 1000000) {
-            Logger::console("Setting CAN1 Baud Rate to %i", newValue);
-            settings.CAN1Speed = newValue;
-            if (settings.CAN1_Enabled) {
-                if (settings.CAN1_FDMode) CAN1.beginFD(settings.CAN1Speed, settings.CAN1FDSpeed);
-                else CAN1.begin(settings.CAN1Speed, 255);
-            }
-            writeEEPROM = true;
-        } else Logger::console("Invalid baud rate! Enter a value 1 - 1000000");
-    } else if (cmdString == String("CAN1FDSPEED")) {
-        if (newValue > 999999 && newValue <= 8000000) {
-            Logger::console("Setting CAN1 FD Data Baud Rate to %i", newValue);
-            settings.CAN1FDSpeed = newValue;
-            if (settings.CAN1_Enabled && settings.CAN1_FDMode) CAN1.beginFD(settings.CAN1Speed, settings.CAN1FDSpeed);
-            writeEEPROM = true;
-        } else Logger::console("Invalid baud rate! Enter a value 1000000 - 8000000");
-    } else if (cmdString == String("CAN1FDMODE")) {
-        if (newValue >= 0 && newValue <= 1) {
-            Logger::console("Setting CAN1 FD Mode to %i", newValue);
-            settings.CAN1_FDMode = newValue;
-            if (settings.CAN1_Enabled)
-            {
-                if (settings.CAN1_FDMode) {
-                    CAN1.beginFD(settings.CAN1Speed, settings.CAN1FDSpeed);
-                } else {
-                    CAN1.begin(settings.CAN1Speed, 255);
-                }
-            }
-            writeEEPROM = true;
-        } else Logger::console("Invalid setting! Enter a value 0 - 1");
     } else if (cmdString == String("CAN0LISTENONLY")) {
         if (newValue >= 0 && newValue <= 1) {
             Logger::console("Setting CAN0 Listen Only to %i", newValue);
@@ -512,6 +238,26 @@ void SerialConsole::handleConfigCmd()
             }
             writeEEPROM = true;
         } else Logger::console("Invalid setting! Enter a value 0 - 1");
+    } else if (cmdString == String("CAN1EN")) {
+        if (newValue < 0) newValue = 0;
+        if (newValue > 1) newValue = 1;
+        Logger::console("Setting CAN1 Enabled to %i", newValue);
+        settings.CAN1_Enabled = newValue;
+        if (newValue == 1 && settings.systemType != 0) 
+        {
+            //CAN0.enable();
+            CAN1.begin(settings.CAN0Speed, 255);
+            CAN1.watchFor();
+        }
+        else CAN1.disable();
+        writeEEPROM = true;
+    } else if (cmdString == String("CAN1SPEED")) {
+        if (newValue > 0 && newValue <= 1000000) {
+            Logger::console("Setting CAN1 Baud Rate to %i", newValue);
+            settings.CAN1Speed = newValue;
+            if (settings.CAN1_Enabled) CAN1.begin(settings.CAN1Speed, 255);
+            writeEEPROM = true;
+        } else Logger::console("Invalid baud rate! Enter a value 1 - 1000000");
     } else if (cmdString == String("CAN1LISTENONLY")) {
         if (newValue >= 0 && newValue <= 1) {
             Logger::console("Setting CAN1 Listen Only to %i", newValue);
@@ -560,24 +306,25 @@ void SerialConsole::handleConfigCmd()
     } else if (cmdString == String("CAN1SEND")) {
         handleCANSend(CAN1, newString);
     } else if (cmdString == String("MARK")) { //just ascii based for now
-        if (settings.fileOutputType == GVRET) Logger::file("Mark: %s", newString);
-        if (settings.fileOutputType == CRTD) {
-            uint8_t buff[40];
-            sprintf((char *)buff, "%f CEV ", millis() / 1000.0f);
-            Logger::fileRaw(buff, strlen((char *)buff));
-            Logger::fileRaw((uint8_t *)newString, strlen(newString));
-            buff[0] = '\r';
-            buff[1] = '\n';
-            Logger::fileRaw(buff, 2);
-        }
         if (!settings.useBinarySerialComm) Logger::console("Mark: %s", newString);
-
     } else if (cmdString == String("BINSERIAL")) {
         if (newValue < 0) newValue = 0;
         if (newValue > 1) newValue = 1;
         Logger::console("Setting Serial Binary Comm to %i", newValue);
         settings.useBinarySerialComm = newValue;
         writeEEPROM = true;
+    } else if (cmdString == String("BTMODE")) {
+        if (newValue < 0) newValue = 0;
+        if (newValue > 1) newValue = 1;
+        Logger::console("Setting Bluetooth Mode to %i", newValue);
+        settings.enableBT = newValue;
+        writeEEPROM = true;
+    } else if (cmdString == String("LAWICEL")) {
+        if (newValue < 0) newValue = 0;
+        if (newValue > 1) newValue = 1;
+        Logger::console("Setting LAWICEL Mode to %i", newValue);
+        settings.enableLawicel = newValue;
+        writeEEPROM = true;        
     } else if (cmdString == String("WIFIMODE")) {
         if (newValue < 0) newValue = 0;
         if (newValue > 2) newValue = 2;
@@ -585,6 +332,10 @@ void SerialConsole::handleConfigCmd()
         if (newValue == 1) Logger::console("Setting Wifi Mode to Connect to AP");
         if (newValue == 2) Logger::console("Setting Wifi Mode to Create AP");
         settings.wifiMode = newValue;
+        writeEEPROM = true;
+    } else if (cmdString == String("BTNAME")) {
+        Logger::console("Setting Bluetooth Name to %s", newString);
+        strcpy((char *)settings.btName, newString);
         writeEEPROM = true;
     } else if (cmdString == String("SSID")) {
         Logger::console("Setting SSID to %s", newString);
@@ -594,42 +345,13 @@ void SerialConsole::handleConfigCmd()
         Logger::console("Setting WPA2 Key to %s", newString);
         strcpy((char *)settings.WPA2Key, newString);
         writeEEPROM = true;
-    } else if (cmdString == String("FILETYPE")) {
-        if (newValue < 0) newValue = 0;
-        if (newValue > 3) newValue = 3;
-        Logger::console("Setting File Output Type to %i", newValue);
-        settings.fileOutputType = (FILEOUTPUTTYPE)newValue; //the numbers all intentionally match up so this works
-        writeEEPROM = true;
-    } else if (cmdString == String("FILEBASE")) {
-        Logger::console("Setting File Base Name to %s", newString);
-        strcpy((char *)settings.fileNameBase, newString);
-        writeEEPROM = true;
-    } else if (cmdString == String("FILEEXT")) {
-        Logger::console("Setting File Extension to %s", newString);
-        strcpy((char *)settings.fileNameExt, newString);
-        writeEEPROM = true;
-    } else if (cmdString == String("FILENUM")) {
-        Logger::console("Setting File Incrementing Number Base to %i", newValue);
-        settings.fileNum = newValue;
-        writeEEPROM = true;
-    } else if (cmdString == String("FILEAPPEND")) {
-        if (newValue < 0) newValue = 0;
-        if (newValue > 1) newValue = 1;
-        Logger::console("Setting File Append Mode to %i", newValue);
-        settings.appendFile = newValue;
-        writeEEPROM = true;
-    } else if (cmdString == String("FILEAUTO")) {
-        if (newValue < 0) newValue = 0;
-        if (newValue > 1) newValue = 1;
-        Logger::console("Setting Auto File Logging Mode to %i", newValue);
-        settings.autoStartLogging = newValue;
-        writeEEPROM = true;
     } else if (cmdString == String("SYSTYPE")) {
-        if (newValue < 1 && newValue >= 0) {
-            settings.sysType = newValue;
-            writeEEPROM = true;
-            Logger::console("System type updated. Power cycle to apply.");
-        } else Logger::console("Invalid system type. Please enter a value between 0 and 0. Yes, just 0");
+        if (newValue < 0) newValue = 0;
+        if (newValue > 1) newValue = 1;
+        if (newValue == 0) Logger::console("Setting board type to Macchina A0");
+        if (newValue == 1) Logger::console("Setting board type to EVTV ESP32");
+        settings.systemType = newValue;
+        writeEEPROM = true;
     } else if (cmdString == String("LOGLEVEL")) {
         switch (newValue) {
         case 0:
@@ -668,10 +390,25 @@ void SerialConsole::handleConfigCmd()
         Logger::console("Unknown command");
     }
     if (writeEEPROM) {
-        EEPROM.writeBytes(0, &settings, sizeof(settings));
-        EEPROM.commit();
+        nvPrefs.begin(PREF_NAME, false);
+        nvPrefs.putUInt("can0speed", settings.CAN0Speed);
+        nvPrefs.putBool("can0_en", settings.CAN0_Enabled);
+        nvPrefs.putBool("can0-listenonly", settings.CAN0ListenOnly);
+        nvPrefs.putUInt("can1speed", settings.CAN1Speed);
+        nvPrefs.putBool("can1_en", settings.CAN1_Enabled);
+        nvPrefs.putBool("can1-listenonly", settings.CAN1ListenOnly);
+        nvPrefs.putBool("binarycomm", settings.useBinarySerialComm);
+        nvPrefs.putBool("enable-bt", settings.enableBT);
+        nvPrefs.putBool("enableLawicel", settings.enableLawicel);
+        nvPrefs.putUChar("loglevel", settings.logLevel);
+        nvPrefs.putUChar("systype", settings.systemType);
+        nvPrefs.putUChar("wifiMode", settings.wifiMode);
+        nvPrefs.putString("SSID", settings.SSID);
+        nvPrefs.putString("wpa2Key", settings.WPA2Key);
+        nvPrefs.putString("btname", settings.btName);
+        nvPrefs.end();
     }
-}
+} 
 
 //CAN0FILTER%i=%%i,%%i,%%i,%%i (ID, Mask, Extended, Enabled)", i);
 bool SerialConsole::handleFilterSet(uint8_t bus, uint8_t filter, char *values)
@@ -747,50 +484,6 @@ bool SerialConsole::handleCANSend(CAN_COMMON &port, char *inputString)
     return true;
 }
 
-unsigned int SerialConsole::parseHexCharacter(char chr)
-{
-    unsigned int result = 0;
-    if (chr >= '0' && chr <= '9') result = chr - '0';
-    else if (chr >= 'A' && chr <= 'F') result = 10 + chr - 'A';
-    else if (chr >= 'a' && chr <= 'f') result = 10 + chr - 'a';
-
-    return result;
-}
-
-unsigned int SerialConsole::parseHexString(char *str, int length)
-{
-    unsigned int result = 0;
-    for (int i = 0; i < length; i++) result += parseHexCharacter(str[i]) << (4 * (length - i - 1));
-    return result;
-}
-
-//Tokenize cmdBuffer on space boundaries - up to 10 tokens supported
-void SerialConsole::tokenizeCmdString() {
-   int idx = 0;
-   char *tok;
-   
-   for (int i = 0; i < 13; i++) tokens[i][0] = 0;
-   
-   tok = strtok(cmdBuffer, " ");
-   if (tok != nullptr) strcpy(tokens[idx], tok);
-       else tokens[idx][0] = 0;
-   while (tokens[idx] != nullptr && idx < 13) {
-       idx++;
-       tok = strtok(nullptr, " ");
-       if (tok != nullptr) strcpy(tokens[idx], tok);
-            else tokens[idx][0] = 0;
-   }
-}
-
-void SerialConsole::uppercaseToken(char *token) {
-    int idx = 0;
-    while (token[idx] != 0 && idx < 9) {
-        token[idx] = toupper(token[idx]);
-        idx++;
-    }
-    token[idx] = 0;
-}
-
 void SerialConsole::printBusName(int bus) {
     switch (bus) {
     case 0:
@@ -803,19 +496,4 @@ void SerialConsole::printBusName(int bus) {
         Serial.print("UNKNOWN");
         break;
     }
-}
-
-//Expecting to find ID in tokens[2] then zero or more data bytes
-bool SerialConsole::parseLawicelCANCmd(CAN_FRAME &frame) {
-    if (tokens[2] == nullptr) return false;
-    frame.id = strtol(tokens[2], nullptr, 16);
-    int idx = 3;
-    int dataLen = 0;
-    while (tokens[idx] != nullptr) {
-        frame.data.bytes[dataLen++] = strtol(tokens[idx], nullptr, 16);
-        idx++;
-    }
-    frame.length = dataLen;
-        
-    return true;
 }
