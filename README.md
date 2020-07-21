@@ -1,11 +1,8 @@
-A0RET
+ESP32RET
 =======
 
-Reverse Engineering Tool running on ESP32 based hardware. Originally meant for Macchina A0 but also
-has support for EVTV ESP32 Board (which was originally supported by ESP32RET). 
+Reverse Engineering Tool running on ESP32 based hardware. Supports both EVTV ESP32 and Macchina A0
 
-A fork of the ESP32RET project, itself a fork of the M2RET project, 
-itself a fork of the GVRET project.
 
 #### Requirements:
 
@@ -14,6 +11,7 @@ You will need the following to be able to compile the run this project:
 - [Arduino IDE](https://www.arduino.cc/en/Main/Software) Tested on 1.8.13
 - [Arduino-ESP32](https://github.com/espressif/arduino-esp32) - Allows for programming the ESP32 with the Arduino IDE
 - [esp32_can](https://github.com/collin80/esp32_can) - A unified CAN library that supports the built-in CAN plus MCP2515 and MCP2517FD
+- [can_common](https://github.com/collin80/can_common) - Common structures and functionality for CAN libraries
 
 PLEASE NOTE: The Macchina A0 uses a WRover ESP32 module which includes PSRAM. But, do NOT use the WRover
 board in the Arduino IDE nor try to enable PSRAM. Doing so causes a fatal crash bug.
