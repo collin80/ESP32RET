@@ -1,5 +1,5 @@
 #include "config.h"
-#include "wifi.h"
+#include "wifi_manager.h"
 #include "gvret_comm.h"
 #include "SerialConsole.h"
 

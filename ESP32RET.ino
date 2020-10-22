@@ -31,7 +31,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <Preferences.h>
 #include "ELM327_Emulator.h"
 #include "SerialConsole.h"
-#include "wifi.h"
+#include "wifi_manager.h"
 #include "gvret_comm.h"
 #include "can_manager.h"
 #include "lawicel.h"

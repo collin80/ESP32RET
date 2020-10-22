@@ -18,6 +18,9 @@ board in the Arduino IDE nor try to enable PSRAM. Doing so causes a fatal crash 
 
 The EVTV board has no PSRAM anyway.
 
+This program is larger than the default partitioning scheme. You will need to use
+a larger scheme. The recommended way to do this: Tools -> Partition Scheme -> Minimal SPIFFS
+
 All libraries belong in %USERPROFILE%\Documents\Arduino\hardware\esp32\libraries (Windows) or ~/Arduino/hardware/esp32/libraries (Linux/Mac).
 
 The canbus is supposed to be terminated on both ends of the bus. This should not be a problem as this firmware will be used to reverse engineer existing buses. However, do note that CAN buses should have a resistance from CAN_H to CAN_L of 60 ohms. This is affected by placing a 120 ohm resistor on both sides of the bus. If the bus resistance is not fairly close to 60 ohms then you may run into trouble.  
