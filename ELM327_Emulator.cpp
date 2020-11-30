@@ -54,16 +54,25 @@ void ELM327Emu::setup() {
     tickCounter = 0;
     ibWritePtr = 0;
     ecuAddress = 0x7E0;
+    mClient = 0;
     serialBT.begin(settings.btName);
+}
+
+void ELM327Emu::setWiFiClient(WiFiClient *client)
+{
+    mClient = client;
 }
 
 /*
  * Send a command to ichip. The "AT+i" part will be added.
  */
 void ELM327Emu::sendCmd(String cmd) {
-    serialBT.print("AT");
-    serialBT.print(cmd);
-    serialBT.write(13);
+    txBuffer.sendString("AT");
+    txBuffer.sendString(cmd);
+    txBuffer.sendByteToBuffer(13);
+
+    sendTxBuffer();
+
     loop(); // parse the response
 }
 
@@ -76,24 +85,66 @@ void ELM327Emu::sendCmd(String cmd) {
 
 void ELM327Emu::loop() {
     int incoming;
-    while (serialBT.available()) {
-        incoming = serialBT.read();
-        if (incoming != -1) { //and there is no reason it should be -1
-            if (incoming == 13 || ibWritePtr > 126) { // on CR or full buffer, process the line
-                incomingBuffer[ibWritePtr] = 0; //null terminate the string
-                ibWritePtr = 0; //reset the write pointer
+    if (!mClient) //bluetooth
+    {
+        while (serialBT.available()) {
+            incoming = serialBT.read();
+            if (incoming != -1) { //and there is no reason it should be -1
+                if (incoming == 13 || ibWritePtr > 126) { // on CR or full buffer, process the line
+                    incomingBuffer[ibWritePtr] = 0; //null terminate the string
+                    ibWritePtr = 0; //reset the write pointer
 
-                if (Logger::isDebug())
-                    Logger::debug(incomingBuffer);
-                processCmd();
+                    if (Logger::isDebug())
+                        Logger::debug(incomingBuffer);
+                    processCmd();
 
-            } else { // add more characters
-                if (incoming != 10 && incoming != ' ') // don't add a LF character or spaces. Strip them right out
-                    incomingBuffer[ibWritePtr++] = (char)tolower(incoming); //force lowercase to make processing easier
-            }
-        } else
-            return;
+                } else { // add more characters
+                    if (incoming != 10 && incoming != ' ') // don't add a LF character or spaces. Strip them right out
+                        incomingBuffer[ibWritePtr++] = (char)tolower(incoming); //force lowercase to make processing easier
+                }
+            } 
+            else return;
+        }
     }
+    else //wifi
+    {
+        while (mClient->available()) {
+            incoming = mClient->read();
+            if (incoming != -1) { //and there is no reason it should be -1
+                if (incoming == 13 || ibWritePtr > 126) { // on CR or full buffer, process the line
+                    incomingBuffer[ibWritePtr] = 0; //null terminate the string
+                    ibWritePtr = 0; //reset the write pointer
+
+                    if (Logger::isDebug())
+                        Logger::debug(incomingBuffer);
+                    processCmd();
+
+                } else { // add more characters
+                    if (incoming != 10 && incoming != ' ') // don't add a LF character or spaces. Strip them right out
+                        incomingBuffer[ibWritePtr++] = (char)tolower(incoming); //force lowercase to make processing easier
+                }
+            } 
+            else return;
+        }
+    }
+}
+
+void ELM327Emu::sendTxBuffer()
+{
+    if (mClient)
+    {
+        size_t wifiLength = txBuffer.numAvailableBytes();
+        uint8_t* buff = txBuffer.getBufferedBytes();
+        if (mClient->connected())
+        {
+            mClient->write(buff, wifiLength);
+        }
+    }
+    else //bluetooth then
+    {
+        serialBT.write(txBuffer.getBufferedBytes(), txBuffer.numAvailableBytes());
+    }
+    txBuffer.clearBufferedBytes();
 }
 
 /*
@@ -103,7 +154,8 @@ void ELM327Emu::loop() {
 void ELM327Emu::processCmd() {
     String retString = processELMCmd(incomingBuffer);
 
-    serialBT.print(retString);
+    txBuffer.sendString(retString);
+    sendTxBuffer();
     if (Logger::isDebug()) {
         char buff[30];
         retString.toCharArray(buff, 30);
@@ -248,11 +300,12 @@ void ELM327Emu::processCANReply(CAN_FRAME &frame)
     if (bHeader) 
     {
         sprintf(buff, "%03X", frame.id);
-        serialBT.print(buff);
+        txBuffer.sendString(buff);
     }
     for (int i = 0; i < frame.data.byte[0]; i++)
     {
         sprintf(buff, "%02X", frame.data.byte[1+i]);
-        serialBT.print(buff);
+        txBuffer.sendString(buff);
     }
+    sendTxBuffer();
 }

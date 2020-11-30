@@ -6,7 +6,7 @@
  * Note: Make sure with all pin defintions of your hardware that each pin number is
  *       only defined once.
 
- Copyright (c) 2013-2018 Collin Kidder, Michael Neuweiler, Charles Galpin
+ Copyright (c) 2013-2020 Collin Kidder, Michael Neuweiler, Charles Galpin
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -26,8 +26,7 @@ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- *      Author: Michael Neuweiler
- */
+*/
 
 #ifndef CONFIG_H_
 #define CONFIG_H_
@@ -48,9 +47,11 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //This keeps the latency more consistent. Otherwise the buffer could partially fill and never send.
 #define SER_BUFF_FLUSH_INTERVAL 20000
 
-#define CFG_BUILD_NUM   616
-#define CFG_VERSION "A0RET Alpha June 20 2020"
-#define PREF_NAME   "A0RET"
+#define CFG_BUILD_NUM   618
+#define CFG_VERSION "Alpha Nov 29 2020"
+#define PREF_NAME   "ESP32RET"
+#define EVTV_NAME   "ESP32RET"
+#define MACC_NAME   "A0RET"
 
 #define MARK_LIMIT  6   //# of our analog input pins to use for marking. Defaults to all of them. Send voltage to pin to trigger it
 
@@ -113,6 +114,7 @@ struct SystemSettings {
     boolean lawicelBusReception[NUM_BUSES]; //does user want to see messages from this bus?
     int8_t numBuses; //number of buses this hardware currently supports.
     WiFiClient clientNodes[MAX_CLIENTS];
+    WiFiClient wifiOBDClients[MAX_CLIENTS];
     boolean isWifiConnected;
     boolean isWifiActive;
 };
@@ -132,5 +134,8 @@ extern SerialConsole console;
 extern CANManager canManager;
 extern LAWICELHandler lawicel;
 extern ELM327Emu elmEmulator;
+extern char deviceName[20];
+extern char otaHost[40];
+extern char otaFilename[100];
 
 #endif /* CONFIG_H_ */

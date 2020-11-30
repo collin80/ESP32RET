@@ -52,6 +52,8 @@ AT RV (adapter voltage) - Send something like 14.4V
 
 #include <Arduino.h>
 #include "BluetoothSerial.h"
+#include <WiFi.h>
+#include "commbuffer.h"
 
 class CAN_FRAME;
 
@@ -62,11 +64,14 @@ public:
     void setup(); //initialization on start up
     void handleTick(); //periodic processes
     void loop();
+    void setWiFiClient(WiFiClient *client);
     void sendCmd(String cmd);
     void processCANReply(CAN_FRAME &frame);
 
 private:
     BluetoothSerial serialBT;
+    WiFiClient *mClient;
+    CommBuffer txBuffer;
     char incomingBuffer[128]; //storage for one incoming line
     char buffer[30]; // a buffer for various string conversions
     bool bLineFeed; //should we use line feeds?
@@ -77,7 +82,8 @@ private:
     int currReply;
 
     void processCmd();
-    String processELMCmd(char *cmd);    
+    String processELMCmd(char *cmd);
+    void sendTxBuffer();
 };
 
 #endif

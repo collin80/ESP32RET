@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include "config.h"
 #include "esp32_can.h"
+#include "commbuffer.h"
 
 enum STATE {
     IDLE,
@@ -39,15 +40,12 @@ enum GVRET_PROTOCOL
     PROTO_SET_EXT_BUSES = 14
 };
 
-class GVRET_Comm_Handler
+class GVRET_Comm_Handler: public CommBuffer
 {
 public:
     GVRET_Comm_Handler();
     void processIncomingByte(uint8_t in_byte);
-    void sendFrameToBuffer(CAN_FRAME &frame, int whichBus);
-    size_t numAvailableBytes();
-    uint8_t* getBufferedBytes();
-    void clearBufferedBytes();
+    
 private:
     CAN_FRAME build_out_frame;
     int out_bus;
@@ -55,8 +53,6 @@ private:
     int step;
     STATE state;
     uint32_t build_int;
-    byte transmitBuffer[WIFI_BUFF_SIZE];
-    int transmitBufferLength; //not creating a ring buffer. The buffer should be large enough to never overflow
 
     uint8_t checksumCalc(uint8_t *buffer, int length);
 };

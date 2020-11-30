@@ -46,6 +46,9 @@ uint32_t lastMarkTrigger = 0;
 EEPROMSettings settings;
 SystemSettings SysSettings;
 Preferences nvPrefs;
+char deviceName[20];
+char otaHost[40];
+char otaFilename[100];
 
 ELM327Emu elmEmulator;
 
@@ -76,26 +79,8 @@ void loadSettings()
     settings.enableLawicel = nvPrefs.getBool("enableLawicel", true);
     settings.systemType = nvPrefs.getUChar("systype", 1); //0 = A0, 1 = EVTV ESP32
     settings.CAN1Speed = nvPrefs.getUInt("can1speed", 500000);
-    settings.CAN1_Enabled = nvPrefs.getBool("can1_en", false);
     settings.CAN1ListenOnly = nvPrefs.getBool("can1-listenonly", false);
-
-    if (nvPrefs.getString("SSID", settings.SSID, 32) == 0)
-    {
-        strcpy(settings.SSID, "ESP32SSID");
-    }
-
-    if (nvPrefs.getString("wpa2Key", settings.WPA2Key, 64) == 0)
-    {
-        strcpy(settings.WPA2Key, "aBigSecret");
-    }
-    if (nvPrefs.getString("btname", settings.btName, 32) == 0)
-    {
-        strcpy(settings.btName, "ELM327-ESP");
-    }
-
-    nvPrefs.end();
-
-    Logger::setLoglevel((Logger::LogLevel)settings.logLevel);
+    settings.CAN1_Enabled = nvPrefs.getBool("can1_en", (settings.systemType == 1) ? true : false);
 
     if (settings.systemType == 0)
     {
@@ -113,6 +98,9 @@ void loadSettings()
         SysSettings.numBuses = 1; //Currently we support CAN0
         SysSettings.isWifiActive = false;
         SysSettings.isWifiConnected = false;
+        strcpy(deviceName, MACC_NAME);
+        strcpy(otaHost, "github.org");
+        strcpy(otaFilename, "/repo/files/a0ret.bin");
     }
 
     if (settings.systemType == 1)
@@ -131,7 +119,30 @@ void loadSettings()
         SysSettings.numBuses = 2;
         SysSettings.isWifiActive = false;
         SysSettings.isWifiConnected = false;
+        strcpy(deviceName, EVTV_NAME);
+        strcpy(otaHost, "media3.evtv.me");
+        strcpy(otaFilename, "/esp32ret.bin");
     }
+
+    if (nvPrefs.getString("SSID", settings.SSID, 32) == 0)
+    {
+        strcpy(settings.SSID, deviceName);
+        strcat(settings.SSID, "SSID");
+    }
+
+    if (nvPrefs.getString("wpa2Key", settings.WPA2Key, 64) == 0)
+    {
+        strcpy(settings.WPA2Key, "aBigSecret");
+    }
+    if (nvPrefs.getString("btname", settings.btName, 32) == 0)
+    {
+        strcpy(settings.btName, "ELM327-");
+        strcat(settings.btName, deviceName);
+    }
+
+    nvPrefs.end();
+
+    Logger::setLoglevel((Logger::LogLevel)settings.logLevel);
 
     for (int rx = 0; rx < NUM_BUSES; rx++) SysSettings.lawicelBusReception[rx] = true; //default to showing messages on RX 
     //set pin mode for all LEDS
@@ -223,12 +234,14 @@ void loop()
 
     size_t wifiLength = wifiGVRET.numAvailableBytes();
     size_t serialLength = serialGVRET.numAvailableBytes();
-    size_t maxLength = (wifiLength>serialLength)?wifiLength:serialLength;
+    size_t maxLength = (wifiLength>serialLength) ? wifiLength : serialLength;
 
     //If the max time has passed or the buffer is almost filled then send buffered data out
-    if ((micros() - lastFlushMicros > SER_BUFF_FLUSH_INTERVAL) || (maxLength > (WIFI_BUFF_SIZE - 40)) ) {
+    if ((micros() - lastFlushMicros > SER_BUFF_FLUSH_INTERVAL) || (maxLength > (WIFI_BUFF_SIZE - 40)) ) 
+    {
         lastFlushMicros = micros();
-        if (serialLength > 0) {
+        if (serialLength > 0) 
+        {
             Serial.write(serialGVRET.getBufferedBytes(), serialLength);
             serialGVRET.clearBufferedBytes();
         }
@@ -239,11 +252,12 @@ void loop()
     }
 
     serialCnt = 0;
-    while ( (Serial.available() > 0) && serialCnt < 128 ) {
+    while ( (Serial.available() > 0) && serialCnt < 128 ) 
+    {
         serialCnt++;
         in_byte = Serial.read();
         serialGVRET.processIncomingByte(in_byte);
     }
 
-    if (settings.enableBT) elmEmulator.loop();
+    elmEmulator.loop();
 }
