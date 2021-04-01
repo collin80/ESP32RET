@@ -43,18 +43,19 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 ELM327Emu::ELM327Emu() 
 {
-    
+    tickCounter = 0;
+    ibWritePtr = 0;
+    ecuAddress = 0x7E0;
+    mClient = 0;
+    bEcho = false;
+    bHeader = false;
+    bLineFeed = true;
 }
 
 /*
  * Initialization of hardware and parameters
  */
 void ELM327Emu::setup() {
-
-    tickCounter = 0;
-    ibWritePtr = 0;
-    ecuAddress = 0x7E0;
-    mClient = 0;
     serialBT.begin(settings.btName);
 }
 
@@ -158,6 +159,7 @@ void ELM327Emu::processCmd() {
     sendTxBuffer();
     if (Logger::isDebug()) {
         char buff[30];
+        retString = "Reply:" + retString;
         retString.toCharArray(buff, 30);
         Logger::debug(buff);
     }
@@ -170,6 +172,12 @@ String ELM327Emu::processELMCmd(char *cmd)
     String lineEnding;
     if (bLineFeed) lineEnding = String("\r\n");
     else lineEnding = String("\r");
+
+    if (bEcho)
+    {
+        retString.concat(cmd);
+        retString.concat(lineEnding);
+    }
 
     if (!strncmp(cmd, "at", 2)) 
     {
@@ -188,8 +196,9 @@ String ELM327Emu::processELMCmd(char *cmd)
         }
         else if (!strncmp(cmd, "ate",3)) 
         { //turn echo on/off
-            //could support echo but I don't see the need, just ignore this
-            retString.concat("OK");
+            if (cmd[3] == '1') bEcho = true;
+            if (cmd[3] == '0') bEcho = false;
+            //retString.concat("OK");
         }
         else if (!strncmp(cmd, "ath",3)) 
         { //turn headers on/off
@@ -205,7 +214,7 @@ String ELM327Emu::processELMCmd(char *cmd)
         }
         else if (!strcmp(cmd, "at@1")) 
         { //send device description
-            retString.concat("ELM327 Emulator");
+            retString.concat("OBDLink MX");
         }
         else if (!strcmp(cmd, "ati")) 
         { //send chip ID

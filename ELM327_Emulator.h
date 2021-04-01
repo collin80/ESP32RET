@@ -76,6 +76,7 @@ private:
     char buffer[30]; // a buffer for various string conversions
     bool bLineFeed; //should we use line feeds?
     bool bHeader; //should we produce a header?
+    bool bEcho; //should we echo back anything sent to us?
     uint32_t ecuAddress;
     int tickCounter;
     int ibWritePtr;
@@ -87,5 +88,3 @@ private:
 };
 
 #endif
-
-

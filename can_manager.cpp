@@ -18,7 +18,8 @@ void CANManager::setup()
     {
         if (settings.systemType == 0) CAN0.setCANPins(GPIO_NUM_4, GPIO_NUM_5);
         CAN0.enable();
-        CAN0.begin(settings.CAN0Speed, 255);
+        if (ESP.getChipRevision() > 2) CAN0.begin(settings.CAN0Speed * 2, 255);
+        else CAN0.begin(settings.CAN0Speed, 255);
         Serial.print("Enabled CAN0 with speed ");
         Serial.println(settings.CAN0Speed);
         if (settings.CAN0ListenOnly) 

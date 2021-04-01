@@ -50,6 +50,8 @@ char deviceName[20];
 char otaHost[40];
 char otaFilename[100];
 
+uint8_t espChipRevision;
+
 ELM327Emu elmEmulator;
 
 WiFiManager wifiManager;
@@ -66,6 +68,8 @@ SerialConsole console;
 void loadSettings()
 {
     Logger::console("Loading settings....");
+
+    //Logger::console("%i\n", espChipRevision);
 
     nvPrefs.begin(PREF_NAME, false);
 
@@ -101,6 +105,8 @@ void loadSettings()
         strcpy(deviceName, MACC_NAME);
         strcpy(otaHost, "github.org");
         strcpy(otaFilename, "/repo/files/a0ret.bin");
+        pinMode(21, OUTPUT);
+        digitalWrite(21, LOW);
     }
 
     if (settings.systemType == 1)
@@ -151,6 +157,8 @@ void loadSettings()
 void setup()
 {
     //delay(5000); //just for testing. Don't use in production
+
+    espChipRevision = ESP.getChipRevision();
 
     Serial.begin(1000000); //for production
     //Serial.begin(115200); //for testing

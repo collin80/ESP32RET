@@ -72,7 +72,7 @@ struct FILTER {  //should be 10 bytes
     uint32_t mask;
     boolean extended;
     boolean enabled;
-};
+} __attribute__((__packed__));
 
 struct EEPROMSettings {
     uint32_t CAN0Speed;
@@ -97,7 +97,7 @@ struct EEPROMSettings {
     uint8_t wifiMode; //0 = don't use wifi, 1 = connect to an AP, 2 = Create an AP
     char SSID[32];     //null terminated string for the SSID
     char WPA2Key[64]; //Null terminated string for the key. Can be a passphase or the actual key
-};
+} __attribute__((__packed__));
 
 struct SystemSettings {
     uint8_t LED_CANTX;

@@ -168,6 +168,16 @@ void SerialConsole::handleShortCmd()
         nvPrefs.end();        
         Logger::console("Power cycle to reset to factory defaults");
         break;
+    case '~':
+        Serial.println("DEBUGGING MODE!");
+        CAN0.setDebuggingMode(true);
+        CAN1.setDebuggingMode(true);
+        break;
+    case '`':
+        Serial.println("Normal mode");
+        CAN0.setDebuggingMode(false);
+        CAN1.setDebuggingMode(false);
+        break;    
     default:
         if (settings.enableLawicel) lawicel.handleShortCmd(cmdBuffer[0]);
         break;
@@ -224,7 +234,11 @@ void SerialConsole::handleConfigCmd()
         if (newValue > 0 && newValue <= 1000000) {
             Logger::console("Setting CAN0 Baud Rate to %i", newValue);
             settings.CAN0Speed = newValue;
-            if (settings.CAN0_Enabled) CAN0.begin(settings.CAN0Speed, 255);
+            if (settings.CAN0_Enabled) 
+            {
+                if (ESP.getChipRevision() > 2) CAN0.begin(settings.CAN0Speed * 2, 255);
+                else CAN0.begin(settings.CAN0Speed, 255);
+            }
             writeEEPROM = true;
         } else Logger::console("Invalid baud rate! Enter a value 1 - 1000000");
     } else if (cmdString == String("CAN0LISTENONLY")) {
