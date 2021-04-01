@@ -26,7 +26,7 @@ All libraries belong in %USERPROFILE%\Documents\Arduino\hardware\esp32\libraries
 The canbus is supposed to be terminated on both ends of the bus. This should not be a problem as this firmware will be used to reverse engineer existing buses. However, do note that CAN buses should have a resistance from CAN_H to CAN_L of 60 ohms. This is affected by placing a 120 ohm resistor on both sides of the bus. If the bus resistance is not fairly close to 60 ohms then you may run into trouble.  
 
 #### The firmware is a work in progress. What works:
-- CAN0 reading and writing
+- CAN0 / CAN1 reading and writing
 - Preferences are saved and loaded
 - Text console is active (configuration and CAN capture display)
 - Can connect as a GVRET device with SavvyCAN
