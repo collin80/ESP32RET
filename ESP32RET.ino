@@ -29,6 +29,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <esp32_can.h>
 #include <SPI.h>
 #include <Preferences.h>
+#include <FastLED.h>
 #include "ELM327_Emulator.h"
 #include "SerialConsole.h"
 #include "wifi_manager.h"
@@ -63,6 +64,8 @@ LAWICELHandler lawicel;
 
 SerialConsole console;
 
+CRGB leds[NUM_LEDS];
+
 //initializes all the system EEPROM values. Chances are this should be broken out a bit but
 //there is only one checksum check for all of them so it's simple to do it all here.
 void loadSettings()
@@ -81,7 +84,7 @@ void loadSettings()
     settings.wifiMode = nvPrefs.getUChar("wifiMode", 2); //Wifi defaults to creating an AP
     settings.enableBT = nvPrefs.getBool("enable-bt", false);
     settings.enableLawicel = nvPrefs.getBool("enableLawicel", true);
-    settings.systemType = nvPrefs.getUChar("systype", 1); //0 = A0, 1 = EVTV ESP32
+    settings.systemType = nvPrefs.getUChar("systype", (espChipRevision > 2) ? 0 : 1); //0 = A0, 1 = EVTV ESP32
     settings.CAN1Speed = nvPrefs.getUInt("can1speed", 500000);
     settings.CAN1ListenOnly = nvPrefs.getBool("can1-listenonly", false);
     settings.CAN1_Enabled = nvPrefs.getBool("can1_en", (settings.systemType == 1) ? true : false);
@@ -90,8 +93,9 @@ void loadSettings()
     {
         Logger::console("Running on Macchina A0");
         SysSettings.LED_CANTX = 255;
-        SysSettings.LED_CANRX = 13;
+        SysSettings.LED_CANRX = 255;
         SysSettings.LED_LOGGING = 255;
+        SysSettings.fancyLED = true;
         SysSettings.logToggle = false;
         SysSettings.txToggle = true;
         SysSettings.rxToggle = true;
@@ -103,8 +107,15 @@ void loadSettings()
         SysSettings.isWifiActive = false;
         SysSettings.isWifiConnected = false;
         strcpy(deviceName, MACC_NAME);
-        strcpy(otaHost, "github.org");
-        strcpy(otaFilename, "/repo/files/a0ret.bin");
+        strcpy(otaHost, "macchina.cc");
+        strcpy(otaFilename, "/a0/files/a0ret.bin");
+        pinMode(13, OUTPUT);
+        digitalWrite(13, LOW);
+        delay(100);
+        FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+        FastLED.setBrightness(  BRIGHTNESS );
+        leds[0] = CRGB::Red;
+        FastLED.show();
         pinMode(21, OUTPUT);
         digitalWrite(21, LOW);
     }
@@ -115,6 +126,7 @@ void loadSettings()
         SysSettings.LED_CANTX = 255;
         SysSettings.LED_CANRX = 255;
         SysSettings.LED_LOGGING = 255;
+        SysSettings.fancyLED = false;
         SysSettings.logToggle = false;
         SysSettings.txToggle = true;
         SysSettings.rxToggle = true;

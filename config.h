@@ -64,6 +64,12 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //It's not even used on this hardware currently. But, slows down the blinks to make them more visible
 #define BLINK_SLOWNESS  100 
 
+#define LED_PIN     2
+#define NUM_LEDS    1
+#define BRIGHTNESS  190
+#define LED_TYPE    WS2812B
+#define COLOR_ORDER GRB
+
 //How many devices to allow to connect to our WiFi telnet port?
 #define MAX_CLIENTS 1
 
@@ -103,6 +109,7 @@ struct SystemSettings {
     uint8_t LED_CANTX;
     uint8_t LED_CANRX;
     uint8_t LED_LOGGING;
+    boolean fancyLED;
     boolean txToggle; //LED toggle values
     boolean rxToggle;
     boolean logToggle;
