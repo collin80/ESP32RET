@@ -22,7 +22,7 @@ void WiFiManager::setup()
     if (settings.wifiMode == 1) //connect to an AP
     {        
         WiFi.mode(WIFI_STA);
-        WiFi.setSleep(false); //sleeping could cause delays
+        WiFi.setSleep(true); //sleeping could cause delays
         WiFi.begin((const char *)settings.SSID, (const char *)settings.WPA2Key);
 
         WiFiEventId_t eventID = WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) 
@@ -35,7 +35,7 @@ void WiFiManager::setup()
            Serial.print("WiFi lost connection. Reason: ");
            Serial.println(info.disconnected.reason);
            SysSettings.isWifiConnected = false;
-           if (info.disconnected.reason == 202) 
+           if ( (info.disconnected.reason == 202) || (info.disconnected.reason == 3)) 
            {
               Serial.println("Connection failed, rebooting to fix it.");
               esp_sleep_enable_timer_wakeup(10);
@@ -47,7 +47,7 @@ void WiFiManager::setup()
     if (settings.wifiMode == 2) //BE an AP
     {
         WiFi.mode(WIFI_AP);
-        WiFi.setSleep(false);
+        WiFi.setSleep(true);
         WiFi.softAP((const char *)settings.SSID, (const char *)settings.WPA2Key);
         if (SysSettings.fancyLED)
         {
@@ -68,7 +68,7 @@ void WiFiManager::loop()
         {
             if (WiFi.isConnected())
             {
-                WiFi.setSleep(false);
+                //WiFi.setSleep(false);
                 Serial.print("Wifi now connected to SSID ");
                 Serial.println((const char *)settings.SSID);
                 Serial.print("IP address: ");

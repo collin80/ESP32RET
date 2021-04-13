@@ -1,4 +1,5 @@
 #include "commbuffer.h"
+#include "Logger.h"
 
 CommBuffer::CommBuffer()
 {
@@ -34,16 +35,21 @@ void CommBuffer::sendByteToBuffer(uint8_t byt)
 
 void CommBuffer::sendString(String str)
 {
-    sendCharString((char *)str.c_str());
+    char buff[300];
+    str.toCharArray(buff, 300);
+    sendCharString(buff);
 }
 
 void CommBuffer::sendCharString(char *str)
 {
     char *p = str;
-    while (p)
+    int i = 0;
+    while (*p)
     {
         sendByteToBuffer(*p++);
+        i++;
     }
+    Logger::debug("Queued %i bytes", i);
 }
 
 void CommBuffer::sendFrameToBuffer(CAN_FRAME &frame, int whichBus)

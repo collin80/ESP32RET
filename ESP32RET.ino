@@ -183,15 +183,19 @@ void setup()
     //try to debug that. But, no dice yet. :(
     //heap_caps_print_heap_info(MALLOC_CAP_8BIT);
 
-    wifiManager.setup();
-
-    //heap_caps_print_heap_info(MALLOC_CAP_8BIT);
-
     if (settings.enableBT) 
     {
         Serial.println("Starting bluetooth");
         elmEmulator.setup();
+        if (SysSettings.fancyLED && (settings.wifiMode == 0) )
+        {
+            leds[0] = CRGB::Green;
+            FastLED.show();
+        }
     }
+    /*else*/ wifiManager.setup();
+
+    //heap_caps_print_heap_info(MALLOC_CAP_8BIT);
 
     //heap_caps_print_heap_info(MALLOC_CAP_8BIT);
 
@@ -250,7 +254,7 @@ void loop()
     //}
 
     canManager.loop();
-    wifiManager.loop();
+    /*if (!settings.enableBT)*/ wifiManager.loop();
 
     size_t wifiLength = wifiGVRET.numAvailableBytes();
     size_t serialLength = serialGVRET.numAvailableBytes();

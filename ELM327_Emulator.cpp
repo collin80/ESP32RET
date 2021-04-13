@@ -158,9 +158,9 @@ void ELM327Emu::processCmd() {
     txBuffer.sendString(retString);
     sendTxBuffer();
     if (Logger::isDebug()) {
-        char buff[30];
+        char buff[300];
         retString = "Reply:" + retString;
-        retString.toCharArray(buff, 30);
+        retString.toCharArray(buff, 300);
         Logger::debug(buff);
     }
 
