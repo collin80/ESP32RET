@@ -57,6 +57,7 @@ ELM327Emu::ELM327Emu()
  */
 void ELM327Emu::setup() {
     serialBT.begin(settings.btName);
+	serialBT.setPin(settings.btPin);
 }
 
 void ELM327Emu::setWiFiClient(WiFiClient *client)
