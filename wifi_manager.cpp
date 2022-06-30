@@ -33,16 +33,16 @@ void WiFiManager::setup()
                FastLED.show();
            }
            Serial.print("WiFi lost connection. Reason: ");
-           Serial.println(info.disconnected.reason);
+           Serial.println(info.wifi_sta_disconnected.reason);
            SysSettings.isWifiConnected = false;
-           if ( (info.disconnected.reason == 202) || (info.disconnected.reason == 3)) 
+           if ( (info.wifi_sta_disconnected.reason == 202) || (info.wifi_sta_disconnected.reason == 3)) 
            {
               Serial.println("Connection failed, rebooting to fix it.");
               esp_sleep_enable_timer_wakeup(10);
               esp_deep_sleep_start();
               delay(100);
            }
-        }, WiFiEvent_t::SYSTEM_EVENT_STA_DISCONNECTED);
+        }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED); 
     }
     if (settings.wifiMode == 2) //BE an AP
     {
