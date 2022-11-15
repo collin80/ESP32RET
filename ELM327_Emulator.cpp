@@ -50,6 +50,8 @@ ELM327Emu::ELM327Emu()
     bEcho = false;
     bHeader = false;
     bLineFeed = true;
+    bMonitorMode = false;
+    bDLC = false;
 }
 
 /*
@@ -62,6 +64,11 @@ void ELM327Emu::setup() {
 void ELM327Emu::setWiFiClient(WiFiClient *client)
 {
     mClient = client;
+}
+
+bool ELM327Emu::getMonitorMode()
+{
+    return bMonitorMode;
 }
 
 /*
@@ -97,9 +104,15 @@ void ELM327Emu::loop() {
 
                     if (Logger::isDebug())
                         Logger::debug(incomingBuffer);
+
                     processCmd();
 
                 } else { // add more characters
+                    if (incoming > 20 && bMonitorMode) 
+                    {
+                        Logger::debug("Exiting monitor mode");
+                        bMonitorMode = false;
+                    }
                     if (incoming != 10 && incoming != ' ') // don't add a LF character or spaces. Strip them right out
                         incomingBuffer[ibWritePtr++] = (char)tolower(incoming); //force lowercase to make processing easier
                 }
@@ -118,6 +131,7 @@ void ELM327Emu::loop() {
 
                     if (Logger::isDebug())
                         Logger::debug(incomingBuffer);
+
                     processCmd();
 
                 } else { // add more characters
@@ -218,7 +232,7 @@ String ELM327Emu::processELMCmd(char *cmd)
         }
         else if (!strcmp(cmd, "ati")) 
         { //send chip ID
-            retString.concat("ELM327 v1.3a");
+            retString.concat("ELM327 v1.5");
         }
         else if (!strncmp(cmd, "atat",4)) 
         { //set adaptive timing
@@ -238,9 +252,24 @@ String ELM327Emu::processELMCmd(char *cmd)
         { //show protocol number (same as passed to sp)
             retString.concat("6");
         }
+        else if (!strncmp(cmd, "atd0", 4)) 
+        { 
+            bDLC = false;
+            retString.concat("OK");
+        }
+        else if (!strncmp(cmd, "atd1", 4)) 
+        { 
+            bDLC = true;
+            retString.concat("OK");
+        }
         else if (!strcmp(cmd, "atd")) 
         { //set to defaults
             retString.concat("OK");
+        }
+        else if (!strncmp(cmd, "atma", 4)) //monitor all mode
+        {
+            Logger::debug("ENTERING monitor mode");
+            bMonitorMode = true;
         }
         else if (!strncmp(cmd, "atm", 3)) 
         { //turn memory on/off
@@ -306,9 +335,14 @@ void ELM327Emu::processCANReply(CAN_FRAME &frame)
     //at the moment assume anything sent here is a legit reply to something we sent. Package it up properly
     //and send it down the line
     char buff[8];
-    if (bHeader) 
+    if (bHeader || bMonitorMode)
     {
         sprintf(buff, "%03X", frame.id);
+        txBuffer.sendString(buff);
+    }
+    if (bDLC)
+    {
+        sprintf(buff, "%u", frame.length);
         txBuffer.sendString(buff);
     }
     for (int i = 0; i < frame.data.byte[0]; i++)

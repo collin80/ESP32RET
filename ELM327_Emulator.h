@@ -67,6 +67,7 @@ public:
     void setWiFiClient(WiFiClient *client);
     void sendCmd(String cmd);
     void processCANReply(CAN_FRAME &frame);
+    bool getMonitorMode();
 
 private:
     BluetoothSerial serialBT;
@@ -77,6 +78,8 @@ private:
     bool bLineFeed; //should we use line feeds?
     bool bHeader; //should we produce a header?
     bool bEcho; //should we echo back anything sent to us?
+    bool bMonitorMode; //should we output all frames?
+    bool bDLC; //output DLC?
     uint32_t ecuAddress;
     int tickCounter;
     int ibWritePtr;
