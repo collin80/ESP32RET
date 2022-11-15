@@ -108,16 +108,16 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
             //immediately return data on canbus params
             transmitBuffer[transmitBufferLength++] = 0xF1;
             transmitBuffer[transmitBufferLength++] = 6;
-            transmitBuffer[transmitBufferLength++] = settings.CAN0_Enabled + ((unsigned char) settings.CAN0ListenOnly << 4);
-            transmitBuffer[transmitBufferLength++] = settings.CAN0Speed;
-            transmitBuffer[transmitBufferLength++] = settings.CAN0Speed >> 8;
-            transmitBuffer[transmitBufferLength++] = settings.CAN0Speed >> 16;
-            transmitBuffer[transmitBufferLength++] = settings.CAN0Speed >> 24;
-            transmitBuffer[transmitBufferLength++] = 0;
-            transmitBuffer[transmitBufferLength++] = settings.CAN1Speed;
-            transmitBuffer[transmitBufferLength++] = settings.CAN1Speed >> 8;
-            transmitBuffer[transmitBufferLength++] = settings.CAN1Speed >> 16;
-            transmitBuffer[transmitBufferLength++] = settings.CAN1Speed >> 24;
+            transmitBuffer[transmitBufferLength++] = settings.canSettings[0].enabled + ((unsigned char) settings.canSettings[0].listenOnly << 4);
+            transmitBuffer[transmitBufferLength++] = settings.canSettings[0].nomSpeed;
+            transmitBuffer[transmitBufferLength++] = settings.canSettings[0].nomSpeed >> 8;
+            transmitBuffer[transmitBufferLength++] = settings.canSettings[0].nomSpeed >> 16;
+            transmitBuffer[transmitBufferLength++] = settings.canSettings[0].nomSpeed >> 24;
+            transmitBuffer[transmitBufferLength++] = settings.canSettings[1].enabled + ((unsigned char) settings.canSettings[1].listenOnly << 4);
+            transmitBuffer[transmitBufferLength++] = settings.canSettings[1].nomSpeed;
+            transmitBuffer[transmitBufferLength++] = settings.canSettings[1].nomSpeed >> 8;
+            transmitBuffer[transmitBufferLength++] = settings.canSettings[1].nomSpeed >> 16;
+            transmitBuffer[transmitBufferLength++] = settings.canSettings[1].nomSpeed >> 24;
             state = IDLE;
             break;
         case PROTO_GET_DEV_INFO:
@@ -216,8 +216,7 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
                 //this would be the checksum byte. Compute and compare.
                 //temp8 = checksumCalc(buff, step);
                 build_out_frame.rtr = 0;
-                if (out_bus == 0) canManager.sendFrame(&CAN0, build_out_frame);
-                if (out_bus == 1) canManager.sendFrame(&CAN1, build_out_frame);
+                if (out_bus < NUM_BUSES) canManager.sendFrame(canBuses[out_bus], build_out_frame);
             }
             break;
         }
@@ -264,37 +263,38 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
                     {
                         if(build_int & 0x40000000ul)
                         {
-                            settings.CAN0_Enabled = true;
+                            settings.canSettings[0].enabled = true;
                         } else 
                         {
-                            settings.CAN0_Enabled = false;
+                            settings.canSettings[0].enabled = false;
                         }
                         if(build_int & 0x20000000ul)
                         {
-                            settings.CAN0ListenOnly = true;
+                            settings.canSettings[0].listenOnly = true;
                         } else 
                         {
-                            settings.CAN0ListenOnly = false;
+                            settings.canSettings[0].listenOnly = false;
                         }
                     } else 
                     {
                         //if not using extended status mode then just default to enabling - this was old behavior
-                        settings.CAN0_Enabled = true;
+                        settings.canSettings[0].enabled = true;
                     }
                     //CAN0.set_baudrate(build_int);
-                    settings.CAN0Speed = busSpeed;
+                    settings.canSettings[0].nomSpeed = busSpeed;
+
                 } else { //disable first canbus
-                    settings.CAN0_Enabled = false;
+                    settings.canSettings[0].enabled = false;
                 }
 
-                if (settings.CAN0_Enabled)
+                if (settings.canSettings[0].enabled)
                 {
-                    CAN0.begin(settings.CAN0Speed, 255);
-                    if (settings.CAN0ListenOnly) CAN0.setListenOnlyMode(true);
-                    else CAN0.setListenOnlyMode(false);
-                    CAN0.watchFor();
+                    canBuses[0]->begin(settings.canSettings[0].nomSpeed, 255);
+                    if (settings.canSettings[0].listenOnly) canBuses[0]->setListenOnlyMode(true);
+                    else canBuses[0]->setListenOnlyMode(false);
+                    canBuses[0]->watchFor();
                 }
-                else CAN0.disable();
+                else canBuses[0]->disable();
                 break;
             case 4:
                 build_int = in_byte;
@@ -316,37 +316,37 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
                     {
                         if(build_int & 0x40000000ul)
                         {
-                            settings.CAN1_Enabled = true;
+                            settings.canSettings[1].enabled = true;
                         } else 
                         {
-                            settings.CAN1_Enabled = false;
+                            settings.canSettings[1].enabled = false;
                         }
                         if(build_int & 0x20000000ul)
                         {
-                            settings.CAN1ListenOnly = true;
+                            settings.canSettings[1].listenOnly = true;
                         } else 
                         {
-                            settings.CAN1ListenOnly = false;
+                            settings.canSettings[1].listenOnly = false;
                         }
                     } else 
                     {
                         //if not using extended status mode then just default to enabling - this was old behavior
-                        settings.CAN1_Enabled = true;
+                        settings.canSettings[1].enabled = true;
                     }
                     //CAN1.set_baudrate(build_int);
-                    settings.CAN1Speed = busSpeed;
+                    settings.canSettings[1].nomSpeed = busSpeed;
                 } else { //disable first canbus
-                    settings.CAN1_Enabled = false;
+                    settings.canSettings[1].enabled = false;
                 }
 
-                if (settings.CAN1_Enabled)
+                if (settings.canSettings[1].enabled)
                 {
-                    CAN1.begin(settings.CAN0Speed, 255);
-                    if (settings.CAN1ListenOnly) CAN1.setListenOnlyMode(true);
-                    else CAN1.setListenOnlyMode(false);
-                    CAN1.watchFor();
+                    canBuses[1]->begin(settings.canSettings[1].nomSpeed, 255);
+                    if (settings.canSettings[1].listenOnly) canBuses[1]->setListenOnlyMode(true);
+                    else canBuses[1]->setListenOnlyMode(false);
+                    canBuses[1]->watchFor();
                 }
-                else CAN1.disable();
+                else canBuses[1]->disable();
 
                 state = IDLE;
                 //now, write out the new canbus settings to EEPROM

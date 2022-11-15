@@ -37,7 +37,10 @@ enum GVRET_PROTOCOL
     PROTO_ECHO_CAN_FRAME = 11,
     PROTO_GET_NUMBUSES = 12,
     PROTO_GET_EXT_BUSES = 13,
-    PROTO_SET_EXT_BUSES = 14
+    PROTO_SET_EXT_BUSES = 14,
+    PROTO_BUILD_FD_FRAME = 20,
+    PROTO_SETUP_FD = 21,
+    PROTO_GET_FD = 22,
 };
 
 class GVRET_Comm_Handler: public CommBuffer
@@ -48,6 +51,7 @@ public:
     
 private:
     CAN_FRAME build_out_frame;
+    CAN_FRAME_FD build_out_fd_frame;
     int out_bus;
     uint8_t buff[20];
     int step;

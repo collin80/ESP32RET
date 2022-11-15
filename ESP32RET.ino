@@ -66,6 +66,8 @@ SerialConsole console;
 
 CRGB leds[NUM_LEDS];
 
+CAN_COMMON *canBuses[NUM_BUSES];
+
 //initializes all the system EEPROM values. Chances are this should be broken out a bit but
 //there is only one checksum check for all of them so it's simple to do it all here.
 void loadSettings()
@@ -74,24 +76,31 @@ void loadSettings()
 
     //Logger::console("%i\n", espChipRevision);
 
+    for (int i = 0; i < NUM_BUSES; i++) canBuses[i] = nullptr;
+
     nvPrefs.begin(PREF_NAME, false);
 
-    settings.CAN0Speed = nvPrefs.getUInt("can0speed", 500000);
-    settings.CAN0_Enabled = nvPrefs.getBool("can0_en", true);
-    settings.CAN0ListenOnly = nvPrefs.getBool("can0-listenonly", false);
+    settings.canSettings[0].nomSpeed = nvPrefs.getUInt("can0speed", 500000);
+    settings.canSettings[0].enabled = nvPrefs.getBool("can0_en", true);
+    settings.canSettings[0].listenOnly = nvPrefs.getBool("can0-listenonly", false);
+    settings.canSettings[0].fdSpeed = nvPrefs.getUInt("can0fdspeed", 5000000);
+    settings.canSettings[0].fdMode = nvPrefs.getBool("can0fdmode", false);
     settings.useBinarySerialComm = nvPrefs.getBool("binarycomm", false);
     settings.logLevel = nvPrefs.getUChar("loglevel", 1); //info
     settings.wifiMode = nvPrefs.getUChar("wifiMode", 2); //Wifi defaults to creating an AP
     settings.enableBT = nvPrefs.getBool("enable-bt", false);
     settings.enableLawicel = nvPrefs.getBool("enableLawicel", true);
     settings.systemType = nvPrefs.getUChar("systype", (espChipRevision > 2) ? 0 : 1); //0 = A0, 1 = EVTV ESP32
-    settings.CAN1Speed = nvPrefs.getUInt("can1speed", 500000);
-    settings.CAN1ListenOnly = nvPrefs.getBool("can1-listenonly", false);
-    settings.CAN1_Enabled = nvPrefs.getBool("can1_en", (settings.systemType == 1) ? true : false);
+    settings.canSettings[1].nomSpeed = nvPrefs.getUInt("can1speed", 500000);
+    settings.canSettings[1].listenOnly = nvPrefs.getBool("can1-listenonly", false);
+    settings.canSettings[1].enabled = nvPrefs.getBool("can1_en", (settings.systemType == 1) ? true : false);
+    settings.canSettings[1].fdSpeed = nvPrefs.getUInt("can1fdspeed", 5000000);
+    settings.canSettings[1].fdMode = nvPrefs.getBool("can1fdmode", false);
 
     if (settings.systemType == 0)
     {
         Logger::console("Running on Macchina A0");
+        canBuses[0] = &CAN0;
         SysSettings.LED_CANTX = 255;
         SysSettings.LED_CANRX = 255;
         SysSettings.LED_LOGGING = 255;
@@ -118,11 +127,14 @@ void loadSettings()
         FastLED.show();
         pinMode(21, OUTPUT);
         digitalWrite(21, LOW);
+        CAN0.setCANPins(GPIO_NUM_4, GPIO_NUM_5);
     }
 
     if (settings.systemType == 1)
     {
         Logger::console("Running on EVTV ESP32 Board");
+        canBuses[0] = &CAN0;
+        canBuses[1] = &CAN1;
         SysSettings.LED_CANTX = 255;
         SysSettings.LED_CANRX = 255;
         SysSettings.LED_LOGGING = 255;
@@ -140,6 +152,61 @@ void loadSettings()
         strcpy(deviceName, EVTV_NAME);
         strcpy(otaHost, "media3.evtv.me");
         strcpy(otaFilename, "/esp32ret.bin");
+    }
+
+    if (settings.systemType == 2)
+    {
+        Logger::console("Running on Macchina 5-CAN");
+        canBuses[0] = &CAN0;
+        canBuses[1] = &CAN1;
+        canBuses[2] = new MCP2517FD(33, 39);
+        canBuses[3] = new MCP2517FD(25, 34);
+        canBuses[4] = new MCP2517FD(14, 13);
+        settings.canSettings[2].nomSpeed = nvPrefs.getUInt("can2speed", 500000);
+        settings.canSettings[2].listenOnly = nvPrefs.getBool("can2-listenonly", false);
+        settings.canSettings[2].enabled = nvPrefs.getBool("can2_en", false);
+        settings.canSettings[2].fdSpeed = nvPrefs.getUInt("can2fdspeed", 5000000);
+        settings.canSettings[2].fdMode = nvPrefs.getBool("can2fdmode", false);
+        settings.canSettings[3].nomSpeed = nvPrefs.getUInt("can3speed", 500000);
+        settings.canSettings[3].listenOnly = nvPrefs.getBool("can3-listenonly", false);
+        settings.canSettings[3].enabled = nvPrefs.getBool("can3_en", false);
+        settings.canSettings[3].fdSpeed = nvPrefs.getUInt("can3fdspeed", 5000000);
+        settings.canSettings[3].fdMode = nvPrefs.getBool("can3fdmode", false);
+        settings.canSettings[4].nomSpeed = nvPrefs.getUInt("can4speed", 500000);
+        settings.canSettings[4].listenOnly = nvPrefs.getBool("can4-listenonly", false);
+        settings.canSettings[4].enabled = nvPrefs.getBool("can4_en", false);
+        settings.canSettings[4].fdSpeed = nvPrefs.getUInt("can4fdspeed", 5000000);
+        settings.canSettings[4].fdMode = nvPrefs.getBool("can4fdmode", false);
+
+        //reconfigure the two already defined CAN buses to use the actual pins for this board.
+        CAN0.setCANPins(GPIO_NUM_4, GPIO_NUM_5); //rx, tx
+        CAN1.setINTPin(36);
+        CAN1.setCSPin(32);
+        SysSettings.LED_CANTX = 255;
+        SysSettings.LED_CANRX = 255;
+        SysSettings.LED_LOGGING = 255;
+        SysSettings.fancyLED = false;
+        SysSettings.logToggle = false;
+        SysSettings.txToggle = true;
+        SysSettings.rxToggle = true;
+        SysSettings.lawicelAutoPoll = false;
+        SysSettings.lawicelMode = false;
+        SysSettings.lawicellExtendedMode = false;
+        SysSettings.lawicelTimestamping = false;
+        SysSettings.numBuses = 5;
+        SysSettings.isWifiActive = false;
+        SysSettings.isWifiConnected = false;
+        strcpy(deviceName, MACC_NAME);
+        strcpy(otaHost, "macchina.cc");
+        strcpy(otaFilename, "/a0/files/a0ret.bin");
+        //Single wire interface
+        pinMode(SW_EN, OUTPUT);
+        pinMode(SW_MODE0, OUTPUT);
+        pinMode(SW_MODE1, OUTPUT);
+        digitalWrite(SW_EN, LOW);      //MUST be LOW to use CAN1 channel 
+        //HH = Normal Mode
+        digitalWrite(SW_MODE0, HIGH);
+        digitalWrite(SW_MODE1, HIGH);
     }
 
     if (nvPrefs.getString("SSID", settings.SSID, 32) == 0)

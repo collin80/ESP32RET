@@ -13,7 +13,7 @@ void LAWICELHandler::handleShortCmd(char cmd)
     {
     case 'O': //LAWICEL open canbus port
         CAN0.setListenOnlyMode(false);
-        CAN0.begin(settings.CAN0Speed, 255);
+        CAN0.begin(settings.canSettings[0].nomSpeed, 255);
         CAN0.enable();
         Serial.write(13); //send CR to mean "ok"
         SysSettings.lawicelMode = true;
@@ -24,7 +24,7 @@ void LAWICELHandler::handleShortCmd(char cmd)
         break;
     case 'L': //LAWICEL open canbus port in listen only mode
         CAN0.setListenOnlyMode(true);
-        CAN0.begin(settings.CAN0Speed, 255);        
+        CAN0.begin(settings.canSettings[0].nomSpeed, 255); 
         CAN0.enable();
         Serial.write(13); //send CR to mean "ok"
         SysSettings.lawicelMode = true;
@@ -112,31 +112,31 @@ void LAWICELHandler::handleLongCmd(char *buffer)
             val = Utility::parseHexCharacter(buffer[1]);
             switch (val) {
             case 0:
-                settings.CAN0Speed = 10000;
+                settings.canSettings[0].nomSpeed = 10000;
                 break;
             case 1:
-                settings.CAN0Speed = 20000;
+                settings.canSettings[0].nomSpeed = 20000;
                 break;
             case 2:
-                settings.CAN0Speed = 50000;
+                settings.canSettings[0].nomSpeed = 50000;
                 break;
             case 3:
-                settings.CAN0Speed = 100000;
+                settings.canSettings[0].nomSpeed = 100000;
                 break;
             case 4:
-                settings.CAN0Speed = 125000;
+                settings.canSettings[0].nomSpeed = 125000;
                 break;
             case 5:
-                settings.CAN0Speed = 250000;
+                settings.canSettings[0].nomSpeed = 250000;
                 break;
             case 6:
-                settings.CAN0Speed = 500000;
+                settings.canSettings[0].nomSpeed = 500000;
                 break;
             case 7:
-                settings.CAN0Speed = 800000;
+                settings.canSettings[0].nomSpeed = 800000;
                 break;
             case 8:
-                settings.CAN0Speed = 1000000;
+                settings.canSettings[0].nomSpeed = 1000000;
                 break;
             }
         }

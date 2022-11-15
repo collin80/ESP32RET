@@ -32,6 +32,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define CONFIG_H_
 
 #include <WiFi.h>
+#include "esp32_can.h"
 #include <Preferences.h>
 
 //size to use for buffering writes to USB. On the ESP32 we're actually talking TTL serial to a TTL<->USB chip
@@ -59,7 +60,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define NUM_DIGITAL 6   // Not currently using digital pins on the ESP32
 #define NUM_OUTPUT  6   // Ditto
 
-#define NUM_BUSES   2   //max # of buses supported by any of the supported boards
+#define NUM_BUSES   5   //max # of buses supported by any of the supported boards
 
 //It's not even used on this hardware currently. But, slows down the blinks to make them more visible
 #define BLINK_SLOWNESS  100 
@@ -69,6 +70,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define BRIGHTNESS  190
 #define LED_TYPE    WS2812B
 #define COLOR_ORDER GRB
+
+#define SW_EN     2
+#define SW_MODE0  26
+#define SW_MODE1  27
 
 //How many devices to allow to connect to our WiFi telnet port?
 #define MAX_CLIENTS 1
@@ -80,19 +85,21 @@ struct FILTER {  //should be 10 bytes
     boolean enabled;
 } __attribute__((__packed__));
 
-struct EEPROMSettings {
-    uint32_t CAN0Speed;
-    boolean CAN0_Enabled;
-    boolean CAN0ListenOnly; //if true we don't allow any messing with the bus but rather just passively monitor.
+struct CANFDSettings {
+    uint32_t nomSpeed;
+    uint32_t fdSpeed;
+    boolean enabled;
+    boolean listenOnly;
+    boolean fdMode;
+};
 
-    uint32_t CAN1Speed;
-    boolean CAN1_Enabled;
-    boolean CAN1ListenOnly;
+struct EEPROMSettings {
+    CANFDSettings canSettings[NUM_BUSES];
 
     boolean useBinarySerialComm; //use a binary protocol on the serial link or human readable format?
 
     uint8_t logLevel; //Level of logging to output on serial line
-    uint8_t systemType; //0 = A0RET, 1 = EVTV ESP32 Board, maybe others in the future
+    uint8_t systemType; //0 = A0RET, 1 = EVTV ESP32 Board, 2 = Macchine 5-CAN board
     
     boolean enableBT; //are we enabling bluetooth too?
     char btName[32];
@@ -144,5 +151,6 @@ extern ELM327Emu elmEmulator;
 extern char deviceName[20];
 extern char otaHost[40];
 extern char otaFilename[100];
+extern CAN_COMMON *canBuses[NUM_BUSES];
 
 #endif /* CONFIG_H_ */

@@ -11,6 +11,7 @@ public:
     uint8_t* getBufferedBytes();
     void clearBufferedBytes();
     void sendFrameToBuffer(CAN_FRAME &frame, int whichBus);
+    void sendFrameToBuffer(CAN_FRAME_FD &frame, int whichBus);
     void sendBytesToBuffer(uint8_t *bytes, size_t length);
     void sendByteToBuffer(uint8_t byt);
     void sendString(String str);

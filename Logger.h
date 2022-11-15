@@ -30,7 +30,6 @@
 #include <Arduino.h>
 #include "config.h"
 
-
 class Logger {
 public:
     enum LogLevel {
