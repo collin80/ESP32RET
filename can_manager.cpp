@@ -19,10 +19,20 @@ void CANManager::setup()
         if (settings.canSettings[i].enabled)
         {
             canBuses[i]->enable();
-            if (settings.canSettings[i].fdMode == 0)
+            if ((settings.canSettings[i].fdMode == 0) || !canBuses[i]->supportsFDMode())
             {
                 canBuses[i]->begin(settings.canSettings[i].nomSpeed, 255);
                 Serial.printf("Enabled CAN%u with speed %u\n", i, settings.canSettings[i].nomSpeed);
+                if ( (i == 0) && (settings.systemType == 2) )
+                {
+                  digitalWrite(SW_EN, HIGH); //MUST be HIGH to use CAN0 channel
+                  Serial.println("Enabling SWCAN Mode");
+                }
+                if ( (i == 1) && (settings.systemType == 2) )
+                {
+                  digitalWrite(SW_EN, LOW); //MUST be LOW to use CAN1 channel
+                  Serial.println("Enabling CAN1 will force CAN0 off.");
+                }
             }
             else
             {
@@ -49,11 +59,11 @@ void CANManager::setup()
 
     if (settings.systemType == 2) //Macchina 5-CAN Board
     {
-        uint8_t  stdbymode;
+        uint8_t stdbymode;
         //need to set all MCP2517FD modules to use GPIO0 as XSTBY to control transceivers
         for (int i = 1; i < 5; i++)
         {
-            MCP2517FD *can = (MCP2517FD *)canBuses[1];
+            MCP2517FD *can = (MCP2517FD *)canBuses[i];
             stdbymode = can->Read8(0xE04);
             stdbymode |= 0x40; // Set bit 6 to enable XSTBY mode
             can->Write8(0xE04, stdbymode);
@@ -155,8 +165,10 @@ void CANManager::loop()
         }
     }
 
-    for (int i = 0; i < NUM_BUSES; i++)
+    for (int i = 0; i < SysSettings.numBuses; i++)
     {
+        if (!canBuses[i]) continue;
+        if (!settings.canSettings[i].enabled) continue;
         while ( (canBuses[i]->available() > 0) && (maxLength < (WIFI_BUFF_SIZE - 80)))
         {
             if (settings.canSettings[i].fdMode == 0)

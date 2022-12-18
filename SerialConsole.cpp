@@ -69,38 +69,27 @@ void SerialConsole::printMenu()
     Serial.println("Config Commands (enter command=newvalue). Current values shown in parenthesis:");
     Serial.println();
 
-    Logger::console("SYSTYPE=%i - Set board type (0 = Macchina A0, 1 = EVTV ESP32 Board", settings.systemType);
+    Logger::console("SYSTYPE=%i - Set board type (0=Macchina A0, 1=EVTV ESP32 Board 2=Macchina A5)", settings.systemType);
     Logger::console("LOGLEVEL=%i - set log level (0=debug, 1=info, 2=warn, 3=error, 4=off)", settings.logLevel);
     Serial.println();
 
-    Logger::console("CAN0EN=%i - Enable/Disable CAN0 (0 = Disable, 1 = Enable)", settings.canSettings[0].enabled);
-    Logger::console("CAN0SPEED=%i - Set speed of CAN0 in baud (125000, 250000, etc)", settings.canSettings[0].nomSpeed);
-    Logger::console("CAN0LISTENONLY=%i - Enable/Disable Listen Only Mode (0 = Dis, 1 = En)", settings.canSettings[0].listenOnly);
-    /*for (int i = 0; i < 8; i++) {
-        sprintf(buff, "CAN0FILTER%i=0x%%x,0x%%x,%%i,%%i (ID, Mask, Extended, Enabled)", i);
-        Logger::console(buff, settings.CAN0Filters[i].id, settings.CAN0Filters[i].mask,
-                        settings.CAN0Filters[i].extended, settings.CAN0Filters[i].enabled);
-    }*/
-    Serial.println();
-
-    if (settings.systemType != 0)
+    for (int i = 0; i < SysSettings.numBuses; i++)
     {
-        Logger::console("CAN1EN=%i - Enable/Disable CAN0 (0 = Disable, 1 = Enable)", settings.canSettings[1].enabled);
-        Logger::console("CAN1SPEED=%i - Set speed of CAN0 in baud (125000, 250000, etc)", settings.canSettings[1].nomSpeed);
-        Logger::console("CAN1LISTENONLY=%i - Enable/Disable Listen Only Mode (0 = Dis, 1 = En)", settings.canSettings[1].listenOnly);
-        /*for (int i = 0; i < 8; i++) {
-            sprintf(buff, "CAN0FILTER%i=0x%%x,0x%%x,%%i,%%i (ID, Mask, Extended, Enabled)", i);
-            Logger::console(buff, settings.CAN0Filters[i].id, settings.CAN0Filters[i].mask,
-                        settings.CAN0Filters[i].extended, settings.CAN0Filters[i].enabled);
-        }*/
+        Logger::console("CANEN%i=%i - Enable/Disable CAN%i (0 = Disable, 1 = Enable)", i, settings.canSettings[i].enabled, i);
+        Logger::console("CANSPEED%i=%i - Set speed of CAN%i in baud (125000, 250000, etc)", i, settings.canSettings[i].nomSpeed, i);
+        if (canBuses[i]->supportsFDMode())
+        {
+            Logger::console("CANFDRATE%i=%i - FD Data Speed of CAN%i (500000, 2000000, etc)", i, settings.canSettings[i].fdSpeed, i);
+            Logger::console("CANFDMODE%i=%i - Allow FD traffic on CAN%i (0 = Disable, 1 = Enable)", i, settings.canSettings[i].fdMode, i);
+        }
+        Logger::console("CANLISTENONLY%i=%i - Enable/Disable Listen Only Mode (0 = Dis, 1 = En)", i, settings.canSettings[i].listenOnly);
+        Serial.println();
+        Logger::console("CANSEND%i=ID,LEN,<BYTES SEPARATED BY COMMAS> - Ex: CAN0SEND=0x200,4,1,2,3,4", i);
         Serial.println();
     }
 
-    Logger::console("CAN0SEND=ID,LEN,<BYTES SEPARATED BY COMMAS> - Ex: CAN0SEND=0x200,4,1,2,3,4");
-    if (settings.systemType !=0)
-        Logger::console("CAN1SEND=ID,LEN,<BYTES SEPARATED BY COMMAS> - Ex: CAN1SEND=0x200,4,1,2,3,4");
-    Logger::console("MARK=<Description of what you are doing> - Set a mark in the log file about what you are about to do.");
-    Serial.println();
+    //Logger::console("MARK=<Description of what you are doing> - Set a mark in the log file about what you are about to do.");
+    //Serial.println();
 
     Logger::console("BINSERIAL=%i - Enable/Disable Binary Sending of CANBus Frames to Serial (0=Dis, 1=En)", settings.useBinarySerialComm);
     Serial.println();
@@ -219,72 +208,83 @@ void SerialConsole::handleConfigCmd()
 
     cmdString.toUpperCase();
 
-    if (cmdString == String("CAN0EN")) 
+    if (cmdString.startsWith("CANEN")) 
     {
+        int idx = cmdString[cmdString.length() - 1] - '0';
+        if (idx < 0) idx = 0;
+        if (idx > (SysSettings.numBuses - 1)) idx = SysSettings.numBuses - 1;
         if (newValue < 0) newValue = 0;
         if (newValue > 1) newValue = 1;
-        Logger::console("Setting CAN0 Enabled to %i", newValue);
-        settings.canSettings[0].enabled = newValue;
+        Logger::console("Setting CAN%i Enabled to %i", idx, newValue);
+        settings.canSettings[idx].enabled = newValue;
         if (newValue == 1) 
         {
             //CAN0.enable();
-            canBuses[0]->begin(settings.canSettings[0].nomSpeed, 255);
-            canBuses[0]->watchFor();
+            canBuses[idx]->begin(settings.canSettings[idx].nomSpeed, 255);
+            canBuses[idx]->watchFor();
         }
-        else canBuses[0]->disable();
+        else canBuses[idx]->disable();
         writeEEPROM = true;
-    } else if (cmdString == String("CAN0SPEED")) {
-        if (newValue > 0 && newValue <= 1000000) {
-            Logger::console("Setting CAN0 Baud Rate to %i", newValue);
-            settings.canSettings[0].nomSpeed = newValue;
-            if (settings.canSettings[0].enabled) 
-            {
-                canBuses[0]->begin(settings.canSettings[0].nomSpeed, 255);
-            }
-            writeEEPROM = true;
-        } else Logger::console("Invalid baud rate! Enter a value 1 - 1000000");
-    } else if (cmdString == String("CAN0LISTENONLY")) {
-        if (newValue >= 0 && newValue <= 1) {
-            Logger::console("Setting CAN0 Listen Only to %i", newValue);
-            settings.canSettings[0].listenOnly = newValue;
-            if (settings.canSettings[0].listenOnly) {
-                canBuses[0]->setListenOnlyMode(true);
-            } else {
-                canBuses[0]->setListenOnlyMode(false);
-            }
-            writeEEPROM = true;
-        } else Logger::console("Invalid setting! Enter a value 0 - 1");
-    } else if (cmdString == String("CAN1EN")) {
-        if (newValue < 0) newValue = 0;
-        if (newValue > 1) newValue = 1;
-        Logger::console("Setting CAN1 Enabled to %i", newValue);
-        settings.canSettings[1].enabled = newValue;
-        if (newValue == 1) 
+    } else if (cmdString.startsWith("CANSPEED")) {
+        int idx = cmdString[cmdString.length() - 1] - '0';
+        if (idx < 0) idx = 0;
+        if (idx > (SysSettings.numBuses - 1)) idx = SysSettings.numBuses - 1;
+        if (newValue > 32000 && newValue <= 1000000)
         {
-            //CAN0.enable();
-            canBuses[1]->begin(settings.canSettings[1].nomSpeed, 255);
-            canBuses[1]->watchFor();
-        }
-        else canBuses[1]->disable();
-        writeEEPROM = true;
-    } else if (cmdString == String("CAN1SPEED")) {
-        if (newValue > 0 && newValue <= 1000000) {
-            Logger::console("Setting CAN1 Baud Rate to %i", newValue);
-            settings.canSettings[1].nomSpeed = newValue;
-            if (settings.canSettings[1].enabled) 
+            Logger::console("Setting CAN%i Nominal Speed to %i", idx, newValue);
+            settings.canSettings[idx].nomSpeed = newValue;
+            if (settings.canSettings[idx].enabled) 
             {
-                canBuses[1]->begin(settings.canSettings[1].nomSpeed, 255);
+                if (settings.canSettings[idx].fdMode)
+                    canBuses[idx]->begin(settings.canSettings[idx].nomSpeed, settings.canSettings[idx].fdSpeed);
             }
             writeEEPROM = true;
-        } else Logger::console("Invalid baud rate! Enter a value 1 - 1000000");
-    } else if (cmdString == String("CAN1LISTENONLY")) {
+        } 
+        else Logger::console("Invalid baud rate! Enter a value 32000 - 1000000");
+    } else if (cmdString.startsWith("CANFDRATE")) {
+        int idx = cmdString[cmdString.length() - 1] - '0';
+        if (idx < 0) idx = 0;
+        if (idx > (SysSettings.numBuses - 1)) idx = SysSettings.numBuses - 1;
+        if (canBuses[idx]->supportsFDMode())
+        {
+            if (newValue > 499999 && newValue <= 8000000) {
+                Logger::console("Setting CAN%i FD Rate to %i", idx, newValue);
+                settings.canSettings[idx].fdSpeed = newValue;
+                if (settings.canSettings[idx].enabled) 
+                {
+                    if (settings.canSettings[idx].fdMode)
+                        canBuses[idx]->beginFD(settings.canSettings[idx].nomSpeed, settings.canSettings[idx].fdSpeed);
+                }
+                writeEEPROM = true;
+            } else Logger::console("Invalid baud rate! Enter a value 500000 - 8000000");
+        } 
+    } else if (cmdString.startsWith("CANFDMODE")) {
+        int idx = cmdString[cmdString.length() - 1] - '0';
+        if (idx < 0) idx = 0;
+        if (idx > (SysSettings.numBuses - 1)) idx = SysSettings.numBuses - 1;
+        if (canBuses[idx]->supportsFDMode())
+        {
+            if (newValue >= 0 && newValue <= 1) {
+                Logger::console("Setting CAN%i FD Mode to %i", idx, newValue);
+                settings.canSettings[idx].fdMode = newValue;
+                    if (settings.canSettings[idx].fdMode)
+                        canBuses[idx]->beginFD(settings.canSettings[idx].nomSpeed, settings.canSettings[idx].fdSpeed);
+                    else
+                        canBuses[idx]->begin(settings.canSettings[idx].nomSpeed, 255);
+                writeEEPROM = true;
+            } else Logger::console("Invalid setting! Enter a value 0 - 1");
+        }
+    } else if (cmdString.startsWith("CANLISTENONLY")) {
+        int idx = cmdString[cmdString.length() - 1] - '0';
+        if (idx < 0) idx = 0;
+        if (idx > (SysSettings.numBuses - 1)) idx = SysSettings.numBuses - 1;
         if (newValue >= 0 && newValue <= 1) {
-            Logger::console("Setting CAN1 Listen Only to %i", newValue);
-            settings.canSettings[1].listenOnly = newValue;
-            if (settings.canSettings[1].listenOnly) {
-                canBuses[1]->setListenOnlyMode(true);
+            Logger::console("Setting CAN%i Listen Only to %i", idx, newValue);
+            settings.canSettings[idx].listenOnly = newValue;
+            if (settings.canSettings[idx].listenOnly) {
+                canBuses[idx]->setListenOnlyMode(true);
             } else {
-                canBuses[1]->setListenOnlyMode(false);
+                canBuses[idx]->setListenOnlyMode(false);
             }
             writeEEPROM = true;
         } else Logger::console("Invalid setting! Enter a value 0 - 1");
@@ -320,10 +320,11 @@ void SerialConsole::handleConfigCmd()
         if (handleFilterSet(1, 6, newString)) writeEEPROM = true;
     } else if (cmdString == String("CAN1FILTER7")) {
         if (handleFilterSet(1, 7, newString)) writeEEPROM = true;
-    } else if (cmdString == String("CAN0SEND")) {
-        handleCANSend(CAN0, newString);
-    } else if (cmdString == String("CAN1SEND")) {
-        handleCANSend(CAN1, newString);
+    } else if (cmdString.startsWith("CANSEND")) {
+        int idx = cmdString[cmdString.length() - 1] - '0';
+        if (idx < 0) idx = 0;
+        if (idx > (SysSettings.numBuses - 1)) idx = SysSettings.numBuses - 1;
+        handleCANSend(*canBuses[idx], newString);
     } else if (cmdString == String("MARK")) { //just ascii based for now
         if (!settings.useBinarySerialComm) Logger::console("Mark: %s", newString);
     } else if (cmdString == String("BINSERIAL")) {
@@ -411,14 +412,22 @@ void SerialConsole::handleConfigCmd()
     }
     if (writeEEPROM) {
         nvPrefs.begin(PREF_NAME, false);
-        nvPrefs.putUInt("can0speed", settings.canSettings[0].nomSpeed);
-        nvPrefs.putBool("can0_en", settings.canSettings[0].enabled);
-        nvPrefs.putBool("can0-listenonly", settings.canSettings[0].listenOnly);
-        nvPrefs.putUInt("can1speed", settings.canSettings[1].nomSpeed);
-        nvPrefs.putBool("can1_en", settings.canSettings[1].enabled);
-        nvPrefs.putBool("can1-listenonly", settings.canSettings[1].listenOnly);
-        nvPrefs.putUInt("canfdspeed", settings.canSettings[1].fdSpeed);
-        nvPrefs.putBool("canfdmode", settings.canSettings[1].fdMode);
+
+        char buff[80];
+        for (int i = 0; i < SysSettings.numBuses; i++)
+        {
+            sprintf(buff, "can%ispeed", i);
+            nvPrefs.putUInt(buff, settings.canSettings[i].nomSpeed);
+            sprintf(buff, "can%i_en", i);
+            nvPrefs.putBool(buff, settings.canSettings[i].enabled);
+            sprintf(buff, "can%i-listenonly", i);
+            nvPrefs.putBool(buff, settings.canSettings[i].listenOnly);
+            sprintf(buff, "can%i-fdspeed", i);
+            nvPrefs.putUInt(buff, settings.canSettings[i].fdSpeed);
+            sprintf(buff, "can%i-fdmode", i);
+            nvPrefs.putBool(buff, settings.canSettings[i].fdMode);
+        }
+        
         nvPrefs.putBool("binarycomm", settings.useBinarySerialComm);
         nvPrefs.putBool("enable-bt", settings.enableBT);
         nvPrefs.putBool("enableLawicel", settings.enableLawicel);

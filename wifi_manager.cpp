@@ -8,7 +8,7 @@
 #include <FastLED.h>
 #include "ELM327_Emulator.h"
 
-extern CRGB leds[NUM_LEDS];
+extern CRGB leds[A5_NUM_LEDS];
 
 static IPAddress broadcastAddr(255,255,255,255);
 
@@ -29,7 +29,7 @@ void WiFiManager::setup()
         {
            if (SysSettings.fancyLED)
            {
-               leds[0] = CRGB::Red;
+               leds[SysSettings.LED_CONNECTION_STATUS] = CRGB::Red;
                FastLED.show();
            }
            Serial.print("WiFi lost connection. Reason: ");
@@ -51,7 +51,7 @@ void WiFiManager::setup()
         WiFi.softAP((const char *)settings.SSID, (const char *)settings.WPA2Key);
         if (SysSettings.fancyLED)
         {
-            leds[0] = CRGB::Green;
+            leds[SysSettings.LED_CONNECTION_STATUS] = CRGB::Green;
             FastLED.show();
         }
     }
@@ -78,7 +78,7 @@ void WiFiManager::loop()
                 needServerInit = true;
                 if (SysSettings.fancyLED)
                 {
-                    leds[0] = CRGB::Green;
+                    leds[SysSettings.LED_CONNECTION_STATUS] = CRGB::Green;
                     FastLED.show();
                 }
             }
@@ -112,7 +112,7 @@ void WiFiManager::loop()
                       String type;
                       if (SysSettings.fancyLED)
                       {
-                          leds[0] = CRGB::Purple;
+                          leds[SysSettings.LED_CONNECTION_STATUS] = CRGB::Purple;
                           FastLED.show();
                       }
                       if (ArduinoOTA.getCommand() == U_FLASH)
@@ -161,7 +161,7 @@ void WiFiManager::loop()
                                 Serial.println(SysSettings.clientNodes[i].remoteIP());
                                 if (SysSettings.fancyLED)
                                 {
-                                    leds[0] = CRGB::Blue;
+                                    leds[SysSettings.LED_CONNECTION_STATUS] = CRGB::Blue;
                                     FastLED.show();
                                 }
                             }
@@ -221,7 +221,7 @@ void WiFiManager::loop()
                             SysSettings.clientNodes[i].stop();
                             if (SysSettings.fancyLED)
                             {
-                                leds[0] = CRGB::Green;
+                                leds[SysSettings.LED_CONNECTION_STATUS] = CRGB::Green;
                                 FastLED.show();
                             }
                         }
@@ -261,7 +261,7 @@ void WiFiManager::loop()
                     SysSettings.isWifiActive = false;
                     if (SysSettings.fancyLED)
                     {  
-                        leds[0] = CRGB::Red;
+                        leds[SysSettings.LED_CONNECTION_STATUS] = CRGB::Red;
                         FastLED.show();
                     }
                 }

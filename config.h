@@ -65,8 +65,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //It's not even used on this hardware currently. But, slows down the blinks to make them more visible
 #define BLINK_SLOWNESS  100 
 
-#define LED_PIN     2
-#define NUM_LEDS    1
+#define A0_LED_PIN     2
+#define A0_NUM_LEDS    1
+#define A5_LED_PIN     15
+#define A5_NUM_LEDS    4
 #define BRIGHTNESS  190
 #define LED_TYPE    WS2812B
 #define COLOR_ORDER GRB
@@ -116,6 +118,7 @@ struct SystemSettings {
     uint8_t LED_CANTX;
     uint8_t LED_CANRX;
     uint8_t LED_LOGGING;
+    uint8_t LED_CONNECTION_STATUS;
     boolean fancyLED;
     boolean txToggle; //LED toggle values
     boolean rxToggle;

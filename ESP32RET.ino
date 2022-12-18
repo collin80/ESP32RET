@@ -64,7 +64,7 @@ LAWICELHandler lawicel;
 
 SerialConsole console;
 
-CRGB leds[NUM_LEDS];
+CRGB leds[A5_NUM_LEDS]; //A5 has the largest # of LEDs so use that one even for A0 or EVTV
 
 CAN_COMMON *canBuses[NUM_BUSES];
 
@@ -80,22 +80,12 @@ void loadSettings()
 
     nvPrefs.begin(PREF_NAME, false);
 
-    settings.canSettings[0].nomSpeed = nvPrefs.getUInt("can0speed", 500000);
-    settings.canSettings[0].enabled = nvPrefs.getBool("can0_en", true);
-    settings.canSettings[0].listenOnly = nvPrefs.getBool("can0-listenonly", false);
-    settings.canSettings[0].fdSpeed = nvPrefs.getUInt("can0fdspeed", 5000000);
-    settings.canSettings[0].fdMode = nvPrefs.getBool("can0fdmode", false);
     settings.useBinarySerialComm = nvPrefs.getBool("binarycomm", false);
     settings.logLevel = nvPrefs.getUChar("loglevel", 1); //info
     settings.wifiMode = nvPrefs.getUChar("wifiMode", 2); //Wifi defaults to creating an AP
     settings.enableBT = nvPrefs.getBool("enable-bt", false);
     settings.enableLawicel = nvPrefs.getBool("enableLawicel", true);
     settings.systemType = nvPrefs.getUChar("systype", (espChipRevision > 2) ? 0 : 1); //0 = A0, 1 = EVTV ESP32
-    settings.canSettings[1].nomSpeed = nvPrefs.getUInt("can1speed", 500000);
-    settings.canSettings[1].listenOnly = nvPrefs.getBool("can1-listenonly", false);
-    settings.canSettings[1].enabled = nvPrefs.getBool("can1_en", (settings.systemType == 1) ? true : false);
-    settings.canSettings[1].fdSpeed = nvPrefs.getUInt("can1fdspeed", 5000000);
-    settings.canSettings[1].fdMode = nvPrefs.getBool("can1fdmode", false);
 
     if (settings.systemType == 0)
     {
@@ -104,6 +94,7 @@ void loadSettings()
         SysSettings.LED_CANTX = 255;
         SysSettings.LED_CANRX = 255;
         SysSettings.LED_LOGGING = 255;
+        SysSettings.LED_CONNECTION_STATUS = 0;
         SysSettings.fancyLED = true;
         SysSettings.logToggle = false;
         SysSettings.txToggle = true;
@@ -121,7 +112,7 @@ void loadSettings()
         pinMode(13, OUTPUT);
         digitalWrite(13, LOW);
         delay(100);
-        FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+        FastLED.addLeds<LED_TYPE, A0_LED_PIN, COLOR_ORDER>(leds, A0_NUM_LEDS).setCorrection( TypicalLEDStrip );
         FastLED.setBrightness(  BRIGHTNESS );
         leds[0] = CRGB::Red;
         FastLED.show();
@@ -138,6 +129,7 @@ void loadSettings()
         SysSettings.LED_CANTX = 255;
         SysSettings.LED_CANRX = 255;
         SysSettings.LED_LOGGING = 255;
+        SysSettings.LED_CONNECTION_STATUS = 255;
         SysSettings.fancyLED = false;
         SysSettings.logToggle = false;
         SysSettings.txToggle = true;
@@ -157,35 +149,21 @@ void loadSettings()
     if (settings.systemType == 2)
     {
         Logger::console("Running on Macchina 5-CAN");
-        canBuses[0] = &CAN0;
-        canBuses[1] = &CAN1;
-        canBuses[2] = new MCP2517FD(33, 39);
-        canBuses[3] = new MCP2517FD(25, 34);
-        canBuses[4] = new MCP2517FD(14, 13);
-        settings.canSettings[2].nomSpeed = nvPrefs.getUInt("can2speed", 500000);
-        settings.canSettings[2].listenOnly = nvPrefs.getBool("can2-listenonly", false);
-        settings.canSettings[2].enabled = nvPrefs.getBool("can2_en", false);
-        settings.canSettings[2].fdSpeed = nvPrefs.getUInt("can2fdspeed", 5000000);
-        settings.canSettings[2].fdMode = nvPrefs.getBool("can2fdmode", false);
-        settings.canSettings[3].nomSpeed = nvPrefs.getUInt("can3speed", 500000);
-        settings.canSettings[3].listenOnly = nvPrefs.getBool("can3-listenonly", false);
-        settings.canSettings[3].enabled = nvPrefs.getBool("can3_en", false);
-        settings.canSettings[3].fdSpeed = nvPrefs.getUInt("can3fdspeed", 5000000);
-        settings.canSettings[3].fdMode = nvPrefs.getBool("can3fdmode", false);
-        settings.canSettings[4].nomSpeed = nvPrefs.getUInt("can4speed", 500000);
-        settings.canSettings[4].listenOnly = nvPrefs.getBool("can4-listenonly", false);
-        settings.canSettings[4].enabled = nvPrefs.getBool("can4_en", false);
-        settings.canSettings[4].fdSpeed = nvPrefs.getUInt("can4fdspeed", 5000000);
-        settings.canSettings[4].fdMode = nvPrefs.getBool("can4fdmode", false);
+        canBuses[0] = &CAN0; //SWCAN on this hardware - DLC pin 1
+        canBuses[1] = &CAN1; //DLC pins 1 and 9. Overlaps with SWCAN
+        canBuses[2] = new MCP2517FD(33, 39); //DLC pins 3/11
+        canBuses[3] = new MCP2517FD(25, 34); //DLC pins 6/14
+        canBuses[4] = new MCP2517FD(14, 13); //DLC pins 12/13
 
         //reconfigure the two already defined CAN buses to use the actual pins for this board.
-        CAN0.setCANPins(GPIO_NUM_4, GPIO_NUM_5); //rx, tx
+        CAN0.setCANPins(GPIO_NUM_4, GPIO_NUM_5); //rx, tx - This is the SWCAN interface
         CAN1.setINTPin(36);
         CAN1.setCSPin(32);
-        SysSettings.LED_CANTX = 255;
-        SysSettings.LED_CANRX = 255;
-        SysSettings.LED_LOGGING = 255;
-        SysSettings.fancyLED = false;
+        SysSettings.LED_CANTX = 0;
+        SysSettings.LED_CANRX = 1;
+        SysSettings.LED_LOGGING = 2;
+        SysSettings.LED_CONNECTION_STATUS = 3;
+        SysSettings.fancyLED = true;
         SysSettings.logToggle = false;
         SysSettings.txToggle = true;
         SysSettings.rxToggle = true;
@@ -196,6 +174,18 @@ void loadSettings()
         SysSettings.numBuses = 5;
         SysSettings.isWifiActive = false;
         SysSettings.isWifiConnected = false;
+
+
+        FastLED.addLeds<LED_TYPE, A5_LED_PIN, COLOR_ORDER>(leds, A5_NUM_LEDS).setCorrection( TypicalLEDStrip );
+        FastLED.setBrightness(  BRIGHTNESS );
+        //With the board facing up and looking at the USB end the LEDs are 0 1 2 (USB) 3
+        //can test LEDs here for debugging but normally leave first three off and set connection to RED.
+        //leds[0] = CRGB::White;
+        //leds[1] = CRGB::Blue;
+        //leds[2] = CRGB::Green;
+        leds[3] = CRGB::Red;
+        FastLED.show();
+
         strcpy(deviceName, MACC_NAME);
         strcpy(otaHost, "macchina.cc");
         strcpy(otaFilename, "/a0/files/a0ret.bin");
@@ -225,12 +215,26 @@ void loadSettings()
         strcat(settings.btName, deviceName);
     }
 
+    char buff[80];
+    for (int i = 0; i < SysSettings.numBuses; i++)
+    {
+        sprintf(buff, "can%ispeed", i);
+        settings.canSettings[i].nomSpeed = nvPrefs.getUInt(buff, 500000);
+        sprintf(buff, "can%i_en", i);
+        settings.canSettings[i].enabled = nvPrefs.getBool(buff, (i < 2)?true:false);
+        sprintf(buff, "can%i-listenonly", i);
+        settings.canSettings[i].listenOnly = nvPrefs.getBool(buff, false);
+        sprintf(buff, "can%i-fdspeed", i);
+        settings.canSettings[i].fdSpeed = nvPrefs.getUInt(buff, 5000000);
+        sprintf(buff, "can%i-fdmode", i);
+        settings.canSettings[i].fdMode = nvPrefs.getBool(buff, false);
+    }
+
     nvPrefs.end();
 
     Logger::setLoglevel((Logger::LogLevel)settings.logLevel);
 
     for (int rx = 0; rx < NUM_BUSES; rx++) SysSettings.lawicelBusReception[rx] = true; //default to showing messages on RX 
-    //set pin mode for all LEDS
 }
 
 void setup()
@@ -277,6 +281,9 @@ void setup()
     SysSettings.lawicelPollCounter = 0;
     
     //elmEmulator.setup();
+
+    Serial.print("Free heap after setup: ");
+    Serial.println(esp_get_free_heap_size());
 
     Serial.print("Done with init\n");
 }
