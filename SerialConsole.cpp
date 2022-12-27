@@ -96,6 +96,7 @@ void SerialConsole::printMenu()
 
     Logger::console("BTMODE=%i - Set mode for Bluetooth (0 = Off, 1 = On)", settings.enableBT);
     Logger::console("BTNAME=%s - Set advertised Bluetooth name", settings.btName);
+	Logger::console("BTPIN=%s - Set advertised Bluetooth pin", settings.btName);
     Serial.println();
 
     Logger::console("LAWICEL=%i - Set whether to accept LAWICEL commands (0 = Off, 1 = On)", settings.enableLawicel);
@@ -339,7 +340,11 @@ void SerialConsole::handleConfigCmd()
         Logger::console("Setting Bluetooth Mode to %i", newValue);
         settings.enableBT = newValue;
         writeEEPROM = true;
-    } else if (cmdString == String("LAWICEL")) {
+    } else if (cmdString == String("BTPIN")){
+		Logger::console("Setting Bluetooth Pin to %s", newString);
+		strcpy((char *)settings.btPin, newString);
+        writeEEPROM = true;
+	}else if (cmdString == String("LAWICEL")) {
         if (newValue < 0) newValue = 0;
         if (newValue > 1) newValue = 1;
         Logger::console("Setting LAWICEL Mode to %i", newValue);
@@ -437,6 +442,7 @@ void SerialConsole::handleConfigCmd()
         nvPrefs.putString("SSID", settings.SSID);
         nvPrefs.putString("wpa2Key", settings.WPA2Key);
         nvPrefs.putString("btname", settings.btName);
+		nvPrefs.putString("btpin", settings.SSID);
         nvPrefs.end();
     }
 } 
