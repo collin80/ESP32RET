@@ -367,10 +367,11 @@ void SerialConsole::handleConfigCmd()
         writeEEPROM = true;
     } else if (cmdString == String("SYSTYPE")) {
         if (newValue < 0) newValue = 0;
-        if (newValue > 2) newValue = 2;
+        if (newValue > 3) newValue = 3;
         if (newValue == 0) Logger::console("Setting board type to Macchina A0");
         if (newValue == 1) Logger::console("Setting board type to EVTV ESP32");
         if (newValue == 2) Logger::console("Setting board type to Macchina 5CAN");
+        if (newValue == 3) Logger::console("Setting board type to EVTV ESP32-S3");
         settings.systemType = newValue;
         writeEEPROM = true;
     } else if (cmdString == String("LOGLEVEL")) {

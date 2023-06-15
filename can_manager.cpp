@@ -7,6 +7,30 @@
 #include "lawicel.h"
 #include "ELM327_Emulator.h"
 
+
+//twai alerts copied here for ease of access. Look up alerts right here:
+//#define TWAI_ALERT_TX_IDLE                  0x00000001  /**< Alert(1): No more messages to transmit */
+//#define TWAI_ALERT_TX_SUCCESS               0x00000002  /**< Alert(2): The previous transmission was successful */
+//#define TWAI_ALERT_RX_DATA                  0x00000004  /**< Alert(4): A frame has been received and added to the RX queue */
+//#define TWAI_ALERT_BELOW_ERR_WARN           0x00000008  /**< Alert(8): Both error counters have dropped below error warning limit */
+//#define TWAI_ALERT_ERR_ACTIVE               0x00000010  /**< Alert(16): TWAI controller has become error active */
+//#define TWAI_ALERT_RECOVERY_IN_PROGRESS     0x00000020  /**< Alert(32): TWAI controller is undergoing bus recovery */
+//#define TWAI_ALERT_BUS_RECOVERED            0x00000040  /**< Alert(64): TWAI controller has successfully completed bus recovery */
+//#define TWAI_ALERT_ARB_LOST                 0x00000080  /**< Alert(128): The previous transmission lost arbitration */
+//#define TWAI_ALERT_ABOVE_ERR_WARN           0x00000100  /**< Alert(256): One of the error counters have exceeded the error warning limit */
+//#define TWAI_ALERT_BUS_ERROR                0x00000200  /**< Alert(512): A (Bit, Stuff, CRC, Form, ACK) error has occurred on the bus */
+//#define TWAI_ALERT_TX_FAILED                0x00000400  /**< Alert(1024): The previous transmission has failed (for single shot transmission) */
+//#define TWAI_ALERT_RX_QUEUE_FULL            0x00000800  /**< Alert(2048): The RX queue is full causing a frame to be lost */
+//#define TWAI_ALERT_ERR_PASS                 0x00001000  /**< Alert(4096): TWAI controller has become error passive */
+//#define TWAI_ALERT_BUS_OFF                  0x00002000  /**< Alert(8192): Bus-off condition occurred. TWAI controller can no longer influence bus */
+//#define TWAI_ALERT_RX_FIFO_OVERRUN          0x00004000  /**< Alert(16384): An RX FIFO overrun has occurred */
+//#define TWAI_ALERT_TX_RETRIED               0x00008000  /**< Alert(32768): An message transmission was cancelled and retried due to an errata workaround */
+//#define TWAI_ALERT_PERIPH_RESET             0x00010000  /**< Alert(65536): The TWAI controller was reset */
+//#define TWAI_ALERT_ALL                      0x0001FFFF  /**< Bit mask to enable all alerts during configuration */
+//#define TWAI_ALERT_NONE                     0x00000000  /**< Bit mask to disable all alerts during configuration */
+//#define TWAI_ALERT_AND_LOG                  0x00020000  /**< Bit mask to enable alerts to also be logged when they occur. Note that logging from the ISR is disabled if CONFIG_TWAI_ISR_IN_IRAM is enabled (see docs). */
+
+
 CANManager::CANManager()
 {
 
@@ -18,10 +42,9 @@ void CANManager::setup()
     {
         if (settings.canSettings[i].enabled)
         {
-            canBuses[i]->enable();
             if ((settings.canSettings[i].fdMode == 0) || !canBuses[i]->supportsFDMode())
             {
-                canBuses[i]->begin(settings.canSettings[i].nomSpeed, 255);
+                canBuses[i]->begin(settings.canSettings[i].nomSpeed);
                 Serial.printf("Enabled CAN%u with speed %u\n", i, settings.canSettings[i].nomSpeed);
                 if ( (i == 0) && (settings.systemType == 2) )
                 {
@@ -33,12 +56,14 @@ void CANManager::setup()
                   digitalWrite(SW_EN, LOW); //MUST be LOW to use CAN1 channel
                   Serial.println("Enabling CAN1 will force CAN0 off.");
                 }
+                canBuses[i]->enable();
             }
             else
             {
                 canBuses[i]->beginFD(settings.canSettings[i].nomSpeed, settings.canSettings[i].fdSpeed);
                 Serial.printf("Enabled CAN1 In FD Mode With Nominal Speed %u and Data Speed %u", 
                                 settings.canSettings[i].nomSpeed, settings.canSettings[i].fdSpeed);
+                canBuses[i]->enable();
             }
 
             if (settings.canSettings[i].listenOnly) 
@@ -147,6 +172,7 @@ void CANManager::loop()
 {
     CAN_FRAME incoming;
     CAN_FRAME_FD inFD;
+    
     size_t wifiLength = wifiGVRET.numAvailableBytes();
     size_t serialLength = serialGVRET.numAvailableBytes();
     size_t maxLength = (wifiLength > serialLength) ? wifiLength : serialLength;
@@ -183,6 +209,7 @@ void CANManager::loop()
                 addBits(i, inFD);
                 displayFrame(inFD, i);
             }
+            
             toggleRXLED();
             if ( (incoming.id > 0x7DF && incoming.id < 0x7F0) || elmEmulator.getMonitorMode() ) elmEmulator.processCANReply(incoming);
             wifiLength = wifiGVRET.numAvailableBytes();

@@ -31,12 +31,14 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 #include "ELM327_Emulator.h"
-#include "BluetoothSerial.h"
 #include "config.h"
 #include "Logger.h"
 #include "utility.h"
 #include "esp32_can.h"
 #include "can_manager.h"
+#ifndef CONFIG_IDF_TARGET_ESP32S3
+#include "BluetoothSerial.h"
+#endif
 
 /*
  * Constructor. Nothing at the moment
@@ -58,7 +60,9 @@ ELM327Emu::ELM327Emu()
  * Initialization of hardware and parameters
  */
 void ELM327Emu::setup() {
+#ifndef CONFIG_IDF_TARGET_ESP32S3
     serialBT.begin(settings.btName);
+#endif
 }
 
 void ELM327Emu::setWiFiClient(WiFiClient *client)
@@ -95,6 +99,7 @@ void ELM327Emu::loop() {
     int incoming;
     if (!mClient) //bluetooth
     {
+#ifndef CONFIG_IDF_TARGET_ESP32S3
         while (serialBT.available()) {
             incoming = serialBT.read();
             if (incoming != -1) { //and there is no reason it should be -1
@@ -119,8 +124,9 @@ void ELM327Emu::loop() {
             } 
             else return;
         }
+#endif
     }
-    else //wifi
+    else //wifi and there is a client
     {
         while (mClient->available()) {
             incoming = mClient->read();
@@ -157,7 +163,9 @@ void ELM327Emu::sendTxBuffer()
     }
     else //bluetooth then
     {
+#ifndef CONFIG_IDF_TARGET_ESP32S3
         serialBT.write(txBuffer.getBufferedBytes(), txBuffer.numAvailableBytes());
+#endif
     }
     txBuffer.clearBufferedBytes();
 }

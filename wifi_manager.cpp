@@ -42,7 +42,7 @@ void WiFiManager::setup()
               esp_deep_sleep_start();
               delay(100);
            }
-        }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED); 
+        }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
     }
     if (settings.wifiMode == 2) //BE an AP
     {

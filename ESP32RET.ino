@@ -37,6 +37,11 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "can_manager.h"
 #include "lawicel.h"
 
+//on the S3 we want the default pins to be different
+#ifdef CONFIG_IDF_TARGET_ESP32S3
+MCP2517FD CAN1(10, 3);
+#endif
+
 byte i = 0;
 
 uint32_t lastFlushMicros = 0;
@@ -85,7 +90,12 @@ void loadSettings()
     settings.wifiMode = nvPrefs.getUChar("wifiMode", 2); //Wifi defaults to creating an AP
     settings.enableBT = nvPrefs.getBool("enable-bt", false);
     settings.enableLawicel = nvPrefs.getBool("enableLawicel", true);
-    settings.systemType = nvPrefs.getUChar("systype", (espChipRevision > 2) ? 0 : 1); //0 = A0, 1 = EVTV ESP32
+
+    uint8_t defaultVal = (espChipRevision > 2) ? 0 : 1; //0 = A0, 1 = EVTV ESP32
+#ifdef CONFIG_IDF_TARGET_ESP32S3
+    defaultVal = 3;
+#endif
+    settings.systemType = nvPrefs.getUChar("systype", defaultVal);
 
     if (settings.systemType == 0)
     {
@@ -199,6 +209,33 @@ void loadSettings()
         digitalWrite(SW_MODE1, HIGH);
     }
 
+    if (settings.systemType == 3)
+    {
+        Logger::console("Running on EVTV ESP32-S3 Board");
+        canBuses[0] = &CAN0;
+        canBuses[1] = &CAN1;
+        //CAN1.setINTPin(3);
+        //CAN1.setCSPin(10);
+        SysSettings.LED_CANTX = 255;//18;
+        SysSettings.LED_CANRX = 255;//18;
+        SysSettings.LED_LOGGING = 255;
+        SysSettings.LED_CONNECTION_STATUS = 255;
+        SysSettings.fancyLED = false;
+        SysSettings.logToggle = false;
+        SysSettings.txToggle = true;
+        SysSettings.rxToggle = true;
+        SysSettings.lawicelAutoPoll = false;
+        SysSettings.lawicelMode = false;
+        SysSettings.lawicellExtendedMode = false;
+        SysSettings.lawicelTimestamping = false;
+        SysSettings.numBuses = 2;
+        SysSettings.isWifiActive = false;
+        SysSettings.isWifiConnected = false;
+        strcpy(deviceName, EVTV_NAME);
+        strcpy(otaHost, "media3.evtv.me");
+        strcpy(otaFilename, "/esp32s3ret.bin");
+    }
+
     if (nvPrefs.getString("SSID", settings.SSID, 32) == 0)
     {
         strcpy(settings.SSID, deviceName);
@@ -239,20 +276,30 @@ void loadSettings()
 
 void setup()
 {
-    //delay(5000); //just for testing. Don't use in production
+#ifdef CONFIG_IDF_TARGET_ESP32S3
+    //for the ESP32S3 it will block if nothing is connected to USB and that can slow down the program
+    //if nothing is connected. But, you can't set 0 or writing rapidly to USB will lose data. It needs
+    //some sort of timeout but I'm not sure exactly how much is needed or if there is a better way
+    //to deal with this issue.
+    Serial.setTxTimeoutMs(2);
+#endif
+    Serial.begin(1000000); //for production
+    //Serial.begin(115200); //for testing
+    //delay(2000); //just for testing. Don't use in production
 
     espChipRevision = ESP.getChipRevision();
 
-    Serial.begin(1000000); //for production
-    //Serial.begin(115200); //for testing
+    Serial.print("Build number: ");
+    Serial.println(CFG_BUILD_NUM);
 
     SysSettings.isWifiConnected = false;
 
     loadSettings();
 
-    //If you enable PSRAM then BluetoothSerial will kill everything via a heap error. These calls
-    //try to debug that. But, no dice yet. :(
-    //heap_caps_print_heap_info(MALLOC_CAP_8BIT);
+    //CAN0.setDebuggingMode(true);
+    //CAN1.setDebuggingMode(true);
+
+    canManager.setup();
 
     if (settings.enableBT) 
     {
@@ -264,16 +311,8 @@ void setup()
             FastLED.show();
         }
     }
+    
     /*else*/ wifiManager.setup();
-
-    //heap_caps_print_heap_info(MALLOC_CAP_8BIT);
-
-    //heap_caps_print_heap_info(MALLOC_CAP_8BIT);
-
-    Serial.print("Build number: ");
-    Serial.println(CFG_BUILD_NUM);
-
-    canManager.setup();
 
     SysSettings.lawicelMode = false;
     SysSettings.lawicelAutoPoll = false;
@@ -287,7 +326,7 @@ void setup()
 
     Serial.print("Done with init\n");
 }
- 
+
 /*
 Send a fake frame out USB and maybe to file to show where the mark was triggered at. The fake frame has bits 31 through 3
 set which can never happen in reality since frames are either 11 or 29 bit IDs. So, this is a sign that it is a mark frame
@@ -357,5 +396,5 @@ void loop()
         serialGVRET.processIncomingByte(in_byte);
     }
 
-    elmEmulator.loop();
+    //elmEmulator.loop();
 }

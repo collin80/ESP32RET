@@ -297,6 +297,7 @@ void Logger::logMessage(const char *format, va_list args)
     buffer[buffLen++] = '\r';
     buffer[buffLen++] = '\n';
     Serial.write(buffer, buffLen);
+    //printf("%s", buffer);
     //If wifi has connected nodes then send to them too.
     for(int i = 0; i < MAX_CLIENTS; i++){
         if (SysSettings.clientNodes[i] && SysSettings.clientNodes[i].connected()){
