@@ -32,7 +32,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define CONFIG_H_
 
 #include <WiFi.h>
-#include "esp32_can.h"
+#include <esp32_can.h>
+#include <esp32_mcp2517fd.h>
 #include <Preferences.h>
 
 //size to use for buffering writes to USB. On the ESP32 we're actually talking TTL serial to a TTL<->USB chip

@@ -25,9 +25,11 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+
 #include "config.h"
 #include <esp32_can.h>
 #include <SPI.h>
+#include <esp32_mcp2517fd.h>
 #include <Preferences.h>
 #include <FastLED.h>
 #include "ELM327_Emulator.h"
@@ -319,7 +321,7 @@ void setup()
     SysSettings.lawicelTimestamping = false;
     SysSettings.lawicelPollCounter = 0;
     
-    //elmEmulator.setup();
+    elmEmulator.setup();
 
     Serial.print("Free heap after setup: ");
     Serial.println(esp_get_free_heap_size());
@@ -396,5 +398,5 @@ void loop()
         serialGVRET.processIncomingByte(in_byte);
     }
 
-    //elmEmulator.loop();
+    elmEmulator.loop();
 }
