@@ -21,6 +21,7 @@ void WiFiManager::setup()
 {
     if (settings.wifiMode == 1) //connect to an AP
     {        
+        Serial.println("Attempting to connect to a WiFi AP.");
         WiFi.mode(WIFI_STA);
         WiFi.setSleep(true); //sleeping could cause delays
         WiFi.begin((const char *)settings.SSID, (const char *)settings.WPA2Key);

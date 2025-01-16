@@ -56,7 +56,8 @@ void CANManager::setup()
                   digitalWrite(SW_EN, LOW); //MUST be LOW to use CAN1 channel
                   Serial.println("Enabling CAN1 will force CAN0 off.");
                 }
-                canBuses[i]->enable();
+                //no need to do this for the built-in CAN
+                if (i > 0) canBuses[i]->enable();
             }
             else
             {
