@@ -10,7 +10,8 @@ You will need the following to be able to compile the run this project:
 
 - [Arduino IDE](https://www.arduino.cc/en/Main/Software) Tested on 1.8.13
 - [Arduino-ESP32](https://github.com/espressif/arduino-esp32) - Allows for programming the ESP32 with the Arduino IDE
-- [esp32_can](https://github.com/collin80/esp32_can) - A unified CAN library that supports the built-in CAN plus MCP2515 and MCP2517FD
+- [esp32_can](https://github.com/collin80/esp32_can) - A CAN library that supports the built-in CAN
+- [esp32_mcp2517fd](https://github.com/collin80/esp32_mcp2517fd) - CAN library supporting MCP2517FD chips
 - [can_common](https://github.com/collin80/can_common) - Common structures and functionality for CAN libraries
 
 PLEASE NOTE: The Macchina A0 uses a WRover ESP32 module which includes PSRAM. But, do NOT use the WRover
