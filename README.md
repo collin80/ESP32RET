@@ -3,6 +3,9 @@ ESP32RET
 
 Reverse Engineering Tool running on ESP32 based hardware. Supports both EVTV ESP32 and Macchina A0
 
+There is a precompiled binary version of this program here:
+https://www.savvycan.com/ESP32RET_Updater.zip
+
 
 #### Requirements:
 
