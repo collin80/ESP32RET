@@ -283,7 +283,8 @@ void setup()
     //if nothing is connected. But, you can't set 0 or writing rapidly to USB will lose data. It needs
     //some sort of timeout but I'm not sure exactly how much is needed or if there is a better way
     //to deal with this issue.
-    Serial.setTxTimeoutMs(2);
+    // TODO: there is no such method =(
+    // Serial.setTxTimeoutMs(2);
 #endif
     Serial.begin(1000000); //for production
     //Serial.begin(115200); //for testing
