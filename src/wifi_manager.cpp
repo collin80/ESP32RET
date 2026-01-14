@@ -19,6 +19,7 @@ WiFiManager::WiFiManager()
 
 void WiFiManager::setup()
 {
+    if (settings.enableBT != 0) return; //No wifi if BT is on
     if (settings.wifiMode == 1) //connect to an AP
     {        
         Serial.println("Attempting to connect to a WiFi AP.");
@@ -62,6 +63,8 @@ void WiFiManager::loop()
 {
     boolean needServerInit = false; 
     int i;    
+
+    if (settings.enableBT != 0) return; //No wifi if BT is on
 
     if (settings.wifiMode > 0)
     {
@@ -284,6 +287,7 @@ void WiFiManager::loop()
 
 void WiFiManager::sendBufferedData()
 {
+    if (settings.enableBT != 0) return; //No wifi if BT is on
     for(int i = 0; i < MAX_CLIENTS; i++)
     {
         size_t wifiLength = wifiGVRET.numAvailableBytes();

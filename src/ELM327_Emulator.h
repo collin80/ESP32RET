@@ -54,7 +54,7 @@ AT RV (adapter voltage) - Send something like 14.4V
 #include <WiFi.h>
 #include "commbuffer.h"
 #ifndef CONFIG_IDF_TARGET_ESP32S3
-//#include "BluetoothSerial.h"
+#include "BluetoothSerial.h"
 #endif
 
 class CAN_FRAME;
@@ -73,7 +73,7 @@ public:
 
 private:
 #ifndef CONFIG_IDF_TARGET_ESP32S3
-    //BluetoothSerial serialBT;
+    BluetoothSerial serialBT;
 #endif
     WiFiClient *mClient;
     CommBuffer txBuffer;

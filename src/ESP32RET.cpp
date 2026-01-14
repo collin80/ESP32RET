@@ -321,7 +321,7 @@ void setup()
     SysSettings.lawicelTimestamping = false;
     SysSettings.lawicelPollCounter = 0;
     
-    elmEmulator.setup();
+    //elmEmulator.setup();
 
     Serial.print("Free heap after setup: ");
     Serial.println(esp_get_free_heap_size());

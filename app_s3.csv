@@ -1,0 +1,7 @@
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,data,nvs,0x9000,20K,
+otadata,data,ota,0xe000,8K,
+app0,app,ota_0,0x10000,3072K,
+app1,app,ota_1,0x310000,3072K,
+eeprom,data,153,0x610000,4K,
+spiffs,data,spiffs,0x620000,1468K,
