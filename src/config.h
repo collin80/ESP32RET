@@ -106,6 +106,7 @@ struct EEPROMSettings {
     
     boolean enableBT; //are we enabling bluetooth too?
     char btName[32];
+    int sendingBus;
 
     boolean enableLawicel;
 

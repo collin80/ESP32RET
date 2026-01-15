@@ -92,6 +92,7 @@ void loadSettings()
     settings.wifiMode = nvPrefs.getUChar("wifiMode", 2); //Wifi defaults to creating an AP
     settings.enableBT = nvPrefs.getBool("enable-bt", false);
     settings.enableLawicel = nvPrefs.getBool("enableLawicel", true);
+    settings.sendingBus = nvPrefs.getInt("sendingBus", 0);
 
     uint8_t defaultVal = (espChipRevision > 2) ? 0 : 1; //0 = A0, 1 = EVTV ESP32
 #ifdef CONFIG_IDF_TARGET_ESP32S3

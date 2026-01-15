@@ -33,7 +33,7 @@
 
 CANManager::CANManager()
 {
-
+    sendToConsole = true;
 }
 
 void CANManager::setup()
@@ -152,7 +152,7 @@ void CANManager::displayFrame(CAN_FRAME &frame, int whichBus)
     else 
     {
         if (SysSettings.isWifiActive) wifiGVRET.sendFrameToBuffer(frame, whichBus);
-        else serialGVRET.sendFrameToBuffer(frame, whichBus);
+        else if (sendToConsole) serialGVRET.sendFrameToBuffer(frame, whichBus);
     }
 }
 
@@ -212,7 +212,12 @@ void CANManager::loop()
             }
             
             toggleRXLED();
-            if ( (incoming.id > 0x7DF && incoming.id < 0x7F0) || elmEmulator.getMonitorMode() ) elmEmulator.processCANReply(incoming);
+            if ( ((incoming.id > 0x7DF) && (incoming.id < 0x7F0)) || elmEmulator.getMonitorMode())
+            {
+                //canManager.displayFrame(incoming, i);
+                if (i == settings.sendingBus)  elmEmulator.processCANReply(incoming);
+            }
+            
             wifiLength = wifiGVRET.numAvailableBytes();
             serialLength = serialGVRET.numAvailableBytes();
             maxLength = (wifiLength > serialLength) ? wifiLength:serialLength;

@@ -35,6 +35,8 @@
 #include "config.h"
 #include "sys_io.h"
 #include "lawicel.h"
+#include "ELM327_Emulator.h"
+#include "can_manager.h"
 
 extern void CANHandler();
 
@@ -96,6 +98,7 @@ void SerialConsole::printMenu()
 
     Logger::console("BTMODE=%i - Set mode for Bluetooth (0 = Off, 1 = On)", settings.enableBT);
     Logger::console("BTNAME=%s - Set advertised Bluetooth name", settings.btName);
+    Logger::console("SENDBUS=%i - Set which CAN bus to send messages from ELM327 emulator", settings.sendingBus);
     Serial.println();
 
     Logger::console("LAWICEL=%i - Set whether to accept LAWICEL commands (0 = Off, 1 = On)", settings.enableLawicel);
@@ -339,6 +342,19 @@ void SerialConsole::handleConfigCmd()
         Logger::console("Setting Bluetooth Mode to %i", newValue);
         settings.enableBT = newValue;
         writeEEPROM = true;
+    } else if (cmdString == String("CONSOLECAN")) {
+        if (newValue < 0) newValue = 0;
+        if (newValue > 1) newValue = 1;
+        Logger::console("Setting Console output of CAN to %i", newValue);
+        canManager.setSendToConsole(newValue);
+        writeEEPROM = true;
+    } else if (cmdString == String("SENDBUS")) {
+        if (newValue < 0) newValue = 0;
+        if (newValue > 4) newValue = 4;
+        Logger::console("Setting ELM327 sending bus to %i", newValue);
+        settings.sendingBus = newValue;
+        elmEmulator.setSendingBus(newValue);
+        writeEEPROM = true;
     } else if (cmdString == String("LAWICEL")) {
         if (newValue < 0) newValue = 0;
         if (newValue > 1) newValue = 1;
@@ -431,6 +447,7 @@ void SerialConsole::handleConfigCmd()
         
         nvPrefs.putBool("binarycomm", settings.useBinarySerialComm);
         nvPrefs.putBool("enable-bt", settings.enableBT);
+        nvPrefs.putInt("sendingBus", settings.sendingBus);
         nvPrefs.putBool("enableLawicel", settings.enableLawicel);
         nvPrefs.putUChar("loglevel", settings.logLevel);
         nvPrefs.putUChar("systype", settings.systemType);

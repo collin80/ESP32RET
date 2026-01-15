@@ -54,6 +54,7 @@ ELM327Emu::ELM327Emu()
     bLineFeed = true;
     bMonitorMode = false;
     bDLC = false;
+    sendingBus = 0;
 }
 
 /*
@@ -165,6 +166,7 @@ void ELM327Emu::sendTxBuffer()
     {
 #ifndef CONFIG_IDF_TARGET_ESP32S3
         serialBT.write(txBuffer.getBufferedBytes(), txBuffer.numAvailableBytes());
+        //Serial.write(txBuffer.getBufferedBytes(), txBuffer.numAvailableBytes());
 #endif
     }
     txBuffer.clearBufferedBytes();
@@ -328,8 +330,12 @@ String ELM327Emu::processELMCmd(char *cmd)
             outFrame.data.byte[2] = pidnum >> 8;
             outFrame.data.byte[3] = pidnum & 0xFF;
         }
-        
-        canManager.sendFrame(&CAN0, outFrame);
+        /* //only for debugging!
+        canManager.setSendToConsole(true);
+        canManager.displayFrame(outFrame, sendingBus);
+        canManager.setSendToConsole(false);
+        */
+        canManager.sendFrame(canBuses[sendingBus], outFrame);
     }
 
     retString.concat(lineEnding);

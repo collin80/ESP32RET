@@ -23,8 +23,10 @@ public:
     void displayFrame(CAN_FRAME_FD &frame, int whichBus);
     void loop();
     void setup();
+    void setSendToConsole(bool state) { sendToConsole = state; }
 
 private:
     BUSLOAD busLoad[NUM_BUSES];
     uint32_t busLoadTimer;
+    bool sendToConsole;
 };
