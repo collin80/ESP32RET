@@ -324,6 +324,12 @@ void onOTAProgress(uint32_t progress, size_t fullSize)
 
 void WiFiManager::attemptOTAUpdate()
 {
+    if (!strcmp(otaHost, "none") || !strcmp(otaFilename, "none"))
+    {
+        Serial.println("OTA is disabled for this board profile (otaHost/otaFilename is 'none').");
+        return;
+    }
+
     if (WiFi.status() == WL_CONNECTED)
     {
         Serial.println("\n\n");
