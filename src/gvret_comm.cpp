@@ -339,14 +339,22 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
                     settings.canSettings[1].enabled = false;
                 }
 
-                if (settings.canSettings[1].enabled)
+                if ((SysSettings.numBuses > 1) && canBuses[1])
                 {
-                    canBuses[1]->begin(settings.canSettings[1].nomSpeed, 255);
-                    if (settings.canSettings[1].listenOnly) canBuses[1]->setListenOnlyMode(true);
-                    else canBuses[1]->setListenOnlyMode(false);
-                    canBuses[1]->watchFor();
+                    if (settings.canSettings[1].enabled)
+                    {
+                        canBuses[1]->begin(settings.canSettings[1].nomSpeed, 255);
+                        if (settings.canSettings[1].listenOnly) canBuses[1]->setListenOnlyMode(true);
+                        else canBuses[1]->setListenOnlyMode(false);
+                        canBuses[1]->watchFor();
+                    }
+                    else canBuses[1]->disable();
                 }
-                else canBuses[1]->disable();
+                else
+                {
+                    // Some boards expose only CAN0. Ignore CAN1 config packets safely.
+                    settings.canSettings[1].enabled = false;
+                }
 
                 state = IDLE;
                 //now, write out the new canbus settings to EEPROM

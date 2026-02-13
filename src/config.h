@@ -54,6 +54,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define PREF_NAME   "ESP32RET"
 #define EVTV_NAME   "ESP32RET"
 #define MACC_NAME   "A0RET"
+#define TCAN_NAME   "TCAN"
 
 #define MARK_LIMIT  6   //# of our analog input pins to use for marking. Defaults to all of them. Send voltage to pin to trigger it
 
@@ -102,7 +103,7 @@ struct EEPROMSettings {
     boolean useBinarySerialComm; //use a binary protocol on the serial link or human readable format?
 
     uint8_t logLevel; //Level of logging to output on serial line
-    uint8_t systemType; //0 = A0RET, 1 = EVTV ESP32 Board, 2 = Macchine 5-CAN board
+    uint8_t systemType; //0 = A0RET, 1 = EVTV ESP32, 2 = Macchina 5-CAN, 3 = EVTV ESP32-S3, 4 = T-CAN
     
     boolean enableBT; //are we enabling bluetooth too?
     char btName[32];

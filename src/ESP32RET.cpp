@@ -239,6 +239,45 @@ void loadSettings()
         strcpy(otaFilename, "/esp32s3ret.bin");
     }
 
+    if (settings.systemType == 4)
+    {
+        Logger::console("Running on T-CAN Board");
+        canBuses[0] = &CAN0;
+        SysSettings.LED_CANTX = 255;
+        SysSettings.LED_CANRX = 255;
+        SysSettings.LED_LOGGING = 255;
+        SysSettings.LED_CONNECTION_STATUS = 0;
+        SysSettings.fancyLED = true;
+        SysSettings.logToggle = false;
+        SysSettings.txToggle = true;
+        SysSettings.rxToggle = true;
+        SysSettings.lawicelAutoPoll = false;
+        SysSettings.lawicelMode = false;
+        SysSettings.lawicellExtendedMode = false;
+        SysSettings.lawicelTimestamping = false;
+        SysSettings.numBuses = 1;
+        SysSettings.isWifiActive = false;
+        SysSettings.isWifiConnected = false;
+        strcpy(deviceName, TCAN_NAME);
+        strcpy(otaHost, "none");
+        strcpy(otaFilename, "none");
+
+        pinMode(23, OUTPUT); // Can standby
+        digitalWrite(23, LOW);
+
+        pinMode(16, OUTPUT); // +5V Power enable
+        digitalWrite(16, HIGH);
+
+        delay(100);
+
+        FastLED.addLeds<LED_TYPE, 4, COLOR_ORDER>(leds, A0_NUM_LEDS).setCorrection( TypicalLEDStrip );
+        FastLED.setBrightness(  BRIGHTNESS );
+        leds[0] = CRGB::Red;
+        FastLED.show();
+
+        CAN0.setCANPins(GPIO_NUM_26, GPIO_NUM_27);
+    }
+
     if (nvPrefs.getString("SSID", settings.SSID, 32) == 0)
     {
         strcpy(settings.SSID, deviceName);
