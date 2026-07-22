@@ -339,14 +339,22 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
                     settings.canSettings[1].enabled = false;
                 }
 
-                if (settings.canSettings[1].enabled)
+                //canBuses[] is a zero-initialised global and single-bus board profiles never
+                //assign canBuses[1], so it is NULL there. The enable path above is guarded by
+                //numBuses > 1 but the disable path was not, so a host sending a zeroed CAN1
+                //config word - which is what a single-bus setup sends - dereferenced NULL and
+                //panicked the chip as soon as it configured the bus.
+                if (SysSettings.numBuses > 1 && canBuses[1])
                 {
-                    canBuses[1]->begin(settings.canSettings[1].nomSpeed, 255);
-                    if (settings.canSettings[1].listenOnly) canBuses[1]->setListenOnlyMode(true);
-                    else canBuses[1]->setListenOnlyMode(false);
-                    canBuses[1]->watchFor();
+                    if (settings.canSettings[1].enabled)
+                    {
+                        canBuses[1]->begin(settings.canSettings[1].nomSpeed, 255);
+                        if (settings.canSettings[1].listenOnly) canBuses[1]->setListenOnlyMode(true);
+                        else canBuses[1]->setListenOnlyMode(false);
+                        canBuses[1]->watchFor();
+                    }
+                    else canBuses[1]->disable();
                 }
-                else canBuses[1]->disable();
 
                 state = IDLE;
                 //now, write out the new canbus settings to EEPROM

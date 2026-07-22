@@ -151,8 +151,11 @@ void CANManager::displayFrame(CAN_FRAME &frame, int whichBus)
     } 
     else 
     {
+        //Feed both transports. With "else if", enabling WiFi silently disabled USB capture:
+        //every frame went only to the WiFi buffer, and sendBufferedData() clears that buffer
+        //whether or not a client is attached, so with no client the frames were discarded.
         if (SysSettings.isWifiActive) wifiGVRET.sendFrameToBuffer(frame, whichBus);
-        else if (sendToConsole) serialGVRET.sendFrameToBuffer(frame, whichBus);
+        if (sendToConsole) serialGVRET.sendFrameToBuffer(frame, whichBus);
     }
 }
 
