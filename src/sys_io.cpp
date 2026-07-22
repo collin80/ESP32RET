@@ -139,8 +139,11 @@ void toggleRXLED()
     if (counter >= BLINK_SLOWNESS) {
         counter = 0;
         SysSettings.rxToggle = !SysSettings.rxToggle;
+        //255 means "no LED". setLED() already honours that, but the fancyLED path did not,
+        //so profiles that set LED_CANRX = 255 (e.g. Macchina A0) indexed leds[255] on a
+        //1-element array the first time a frame arrived.
         if (!SysSettings.fancyLED) setLED(SysSettings.LED_CANRX, SysSettings.rxToggle);
-        else
+        else if (SysSettings.LED_CANRX != 255)
         {
           leds[SysSettings.LED_CANRX] = SysSettings.rxToggle?CRGB::Blue:CRGB::Black;
         };
@@ -154,10 +157,11 @@ void toggleTXLED()
     if (counter >= BLINK_SLOWNESS) {
         counter = 0;
         SysSettings.txToggle = !SysSettings.txToggle;
+        //Same 255 guard as above; also this wrote the RX led/toggle rather than the TX pair.
         if (!SysSettings.fancyLED) setLED(SysSettings.LED_CANTX, SysSettings.txToggle);
-        else
+        else if (SysSettings.LED_CANTX != 255)
         {
-          leds[SysSettings.LED_CANRX] = SysSettings.rxToggle?CRGB::Green:CRGB::Black;
+          leds[SysSettings.LED_CANTX] = SysSettings.txToggle?CRGB::Green:CRGB::Black;
         };
     }
 }
