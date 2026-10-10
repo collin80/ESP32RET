@@ -1,0 +1,74 @@
+# Builds ESP32RET for the LilyGO T-2CAN-FD (PlatformIO env "t2canfd") and publishes the firmware
+# as a workflow artifact: the separate images plus one merged image that can be flashed at 0x0.
+name: Build T-2CAN-FD firmware
+
+on:
+  push:
+    branches:
+      - "t2canfd-board"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ESP32RET t2canfd
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache PlatformIO platforms, toolchains and libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-t2canfd-${{ hashFiles('platformio.ini') }}
+
+      - name: Install PlatformIO and esptool
+        run: pip install --upgrade platformio esptool==5.1.0
+
+      - name: Build
+        run: pio run -e t2canfd
+
+      - name: Package images
+        run: |
+          set -e
+          BUILD=.pio/build/t2canfd
+          BOOT_APP0=~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          mkdir -p out
+          cp "$BUILD/bootloader.bin" "$BUILD/partitions.bin" "$BUILD/firmware.bin" "$BOOT_APP0" out/
+          # Single image for a full flash at 0x0 (offsets as used by "pio run -t upload" on the ESP32-S3)
+          esptool --chip esp32s3 merge-bin -o "out/esp32ret-t2canfd-${SHORT_SHA}-merged.bin" \
+            0x0 "$BUILD/bootloader.bin" \
+            0x8000 "$BUILD/partitions.bin" \
+            0xe000 "$BOOT_APP0" \
+            0x10000 "$BUILD/firmware.bin"
+          cat > out/FLASHING.txt <<EOF
+          ESP32RET for LilyGO T-2CAN-FD, commit ${SHORT_SHA}
+
+          Easiest: flash the merged image at 0x0
+            esptool --chip esp32s3 --port <COMx> write-flash 0x0 esp32ret-t2canfd-${SHORT_SHA}-merged.bin
+
+          Or the separate images:
+            0x0      bootloader.bin
+            0x8000   partitions.bin
+            0xe000   boot_app0.bin
+            0x10000  firmware.bin
+
+          If the port doesn't show up or the flash fails, hold BOOT while pressing RST to enter download mode.
+          EOF
+          ls -l out
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32ret-t2canfd-${{ github.sha }}
+          path: out/
