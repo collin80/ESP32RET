@@ -41,6 +41,10 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
     case GET_COMMAND:
         switch(in_byte)
         {
+        case PROTO_BUILD_FD_FRAME:
+            state = BUILD_FD_FRAME;
+            step = 0;
+            break;
         case PROTO_BUILD_CAN_FRAME:
             state = BUILD_CAN_FRAME;
             buff[0] = 0xF1;
@@ -216,7 +220,62 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
                 //this would be the checksum byte. Compute and compare.
                 //temp8 = checksumCalc(buff, step);
                 build_out_frame.rtr = 0;
-                if (out_bus < NUM_BUSES) canManager.sendFrame(canBuses[out_bus], build_out_frame);
+                if (out_bus < NUM_BUSES && canBuses[out_bus]) canManager.sendFrame(canBuses[out_bus], build_out_frame);
+            }
+            break;
+        }
+        step++;
+        break;
+    //CAN FD frame from the host, opcode 20: id[4] (bit 31 = extended), bus, length (bits 0-6) with BRS in
+    //bit 7, data[length], trailing byte. Same layout as opcode 0. The MCP2517FD library always sends FD
+    //frames with BRS set, so the BRS bit is accepted but not used yet.
+    case BUILD_FD_FRAME:
+        switch(step)
+        {
+        case 0:
+            build_out_fd_frame.id = in_byte;
+            break;
+        case 1:
+            build_out_fd_frame.id |= in_byte << 8;
+            break;
+        case 2:
+            build_out_fd_frame.id |= in_byte << 16;
+            break;
+        case 3:
+            build_out_fd_frame.id |= in_byte << 24;
+            if(build_out_fd_frame.id & 1ul << 31)
+            {
+                build_out_fd_frame.id &= 0x7FFFFFFF;
+                build_out_fd_frame.extended = true;
+            } else build_out_fd_frame.extended = false;
+            break;
+        case 4:
+            out_bus = in_byte & 3;
+            break;
+        case 5:
+            build_out_fd_frame.length = in_byte & 0x7F;
+            if (build_out_fd_frame.length > 64) //not a CAN FD length: drop it and resync on the next 0xF1
+            {
+                state = IDLE;
+                return;
+            }
+            break;
+        default:
+            if(step < build_out_fd_frame.length + 6)
+            {
+                build_out_fd_frame.data.uint8[step - 6] = in_byte;
+            }
+            else
+            {
+                state = IDLE;
+                //trailing byte: send it if the bus can carry CAN FD right now
+                build_out_fd_frame.fdMode = 1;
+                build_out_fd_frame.rrs = 0;
+                if (out_bus < NUM_BUSES && canBuses[out_bus] && canBuses[out_bus]->supportsFDMode() &&
+                    settings.canSettings[out_bus].fdMode)
+                {
+                    canManager.sendFrame(canBuses[out_bus], build_out_fd_frame);
+                }
             }
             break;
         }
