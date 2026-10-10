@@ -55,6 +55,7 @@ private:
     void handleConfigCmd();
     bool handleFilterSet(uint8_t bus, uint8_t filter, char *values);
     bool handleCANSend(CAN_COMMON &port, char *inputString);
+    void sendFDTestBursts(int bus, int bursts);
     bool handleSWCANSend(char *inputString);
 };
 

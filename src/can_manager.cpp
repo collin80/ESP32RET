@@ -6,6 +6,7 @@
 #include "gvret_comm.h"
 #include "lawicel.h"
 #include "ELM327_Emulator.h"
+#include <esp32_mcp2517fd_regs.h>
 
 
 //twai alerts copied here for ease of access. Look up alerts right here:
@@ -139,6 +140,7 @@ void CANManager::sendFrame(CAN_COMMON *bus, CAN_FRAME &frame)
     for (int i = 0; i < NUM_BUSES; i++) if (canBuses[i] == bus) whichBus = i;
     bus->sendFrame(frame);
     addBits(whichBus, frame);
+    txCount[whichBus]++;
 }
 
 void CANManager::sendFrame(CAN_COMMON *bus, CAN_FRAME_FD &frame)
@@ -147,6 +149,7 @@ void CANManager::sendFrame(CAN_COMMON *bus, CAN_FRAME_FD &frame)
     for (int i = 0; i < NUM_BUSES; i++) if (canBuses[i] == bus) whichBus = i;
     bus->sendFrameFD(frame);
     addBits(whichBus, frame);
+    txCount[whichBus]++;
 }
 
 
@@ -173,6 +176,39 @@ void CANManager::displayFrame(CAN_FRAME_FD &frame, int whichBus)
     {
         if (SysSettings.isWifiActive) wifiGVRET.sendFrameToBuffer(frame, whichBus);
         else serialGVRET.sendFrameToBuffer(frame, whichBus);
+    }
+}
+
+//STATS console command: per-bus frame counts, plus the MCP2518FD error registers for FD capable buses.
+//Note the MCP2517FD library resets the controller after RX/bit errors, which also clears these registers.
+void CANManager::printStats(bool reset)
+{
+    for (int i = 0; i < SysSettings.numBuses; i++)
+    {
+        if (!canBuses[i]) continue;
+        Serial.printf("CAN%i: rx %u  tx %u\n", i, rxCount[i], txCount[i]);
+        if (canBuses[i]->supportsFDMode())
+        {
+            MCP2517FD *mcp = (MCP2517FD *)canBuses[i];
+            uint32_t trec = mcp->Read(ADDR_CiTREC);
+            uint32_t diag0 = mcp->Read(ADDR_CiBDIAG0);
+            uint32_t diag1 = mcp->Read(ADDR_CiBDIAG1);
+            Serial.printf("  TEC %u  REC %u  TREC 0x%08X\n", (trec >> 8) & 0xFF, trec & 0xFF, trec);
+            Serial.printf("  errors: nominal rx %u tx %u, data rx %u tx %u\n",
+                          diag0 & 0xFF, (diag0 >> 8) & 0xFF, (diag0 >> 16) & 0xFF, (diag0 >> 24) & 0xFF);
+            Serial.printf("  BDIAG1 0x%08X (error-free msgs %u)%s%s%s%s%s%s%s%s%s%s%s\n", diag1, diag1 & 0xFFFF,
+                          (diag1 & (1ul << 16)) ? " NBIT0" : "", (diag1 & (1ul << 17)) ? " NBIT1" : "",
+                          (diag1 & (1ul << 18)) ? " NACK" : "", (diag1 & (1ul << 19)) ? " NFORM" : "",
+                          (diag1 & (1ul << 20)) ? " NSTUF" : "", (diag1 & (1ul << 21)) ? " NCRC" : "",
+                          (diag1 & (1ul << 24)) ? " DBIT0" : "", (diag1 & (1ul << 25)) ? " DBIT1" : "",
+                          (diag1 & (1ul << 27)) ? " DFORM" : "", (diag1 & (1ul << 28)) ? " DSTUF" : "",
+                          (diag1 & (1ul << 29)) ? " DCRC" : "");
+        }
+        if (reset)
+        {
+            rxCount[i] = 0;
+            txCount[i] = 0;
+        }
     }
 }
 
@@ -217,6 +253,7 @@ void CANManager::loop()
                 addBits(i, inFD);
                 displayFrame(inFD, i);
             }
+            rxCount[i]++;
             
             toggleRXLED();
             if ( ((incoming.id > 0x7DF) && (incoming.id < 0x7F0)) || elmEmulator.getMonitorMode())

@@ -25,8 +25,11 @@ public:
     void setup();
     void restartBus(int i);
     void setSendToConsole(bool state) { sendToConsole = state; }
+    void printStats(bool reset);
 
 private:
+    uint32_t rxCount[NUM_BUSES] = {0};  //frames read from each bus since boot / last STATS=1
+    uint32_t txCount[NUM_BUSES] = {0};  //frames handed to each bus for sending
     BUSLOAD busLoad[NUM_BUSES];
     uint32_t busLoadTimer;
     bool sendToConsole;

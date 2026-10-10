@@ -87,6 +87,11 @@ void SerialConsole::printMenu()
         Logger::console("CANLISTENONLY%i=%i - Enable/Disable Listen Only Mode (0 = Dis, 1 = En)", i, settings.canSettings[i].listenOnly);
         Serial.println();
         Logger::console("CANSEND%i=ID,LEN,<BYTES SEPARATED BY COMMAS> - Ex: CAN0SEND=0x200,4,1,2,3,4", i);
+        if (canBuses[i]->supportsFDMode())
+        {
+            Logger::console("FDTEST%i=N - Send N bursts of CAN FD test frames on CAN%i (bus must be in FD mode)", i, i);
+        }
+        if (i == 0) Logger::console("STATS=0|1 - Show frame counts and FD controller error registers (1 = then zero the counts)");
         Serial.println();
     }
 
@@ -319,6 +324,23 @@ void SerialConsole::handleConfigCmd()
         if (idx < 0) idx = 0;
         if (idx > (SysSettings.numBuses - 1)) idx = SysSettings.numBuses - 1;
         handleCANSend(*canBuses[idx], newString);
+    } else if (cmdString == String("STATS")) {
+        //STATS=0 prints frame counts and controller error registers, STATS=1 prints then zeroes the counts
+        canManager.printStats(newValue == 1);
+    } else if (cmdString.startsWith("FDTEST")) {
+        int idx = cmdString[cmdString.length() - 1] - '0';
+        if (idx < 0) idx = 0;
+        if (idx > (SysSettings.numBuses - 1)) idx = SysSettings.numBuses - 1;
+        if (!canBuses[idx]->supportsFDMode() || !settings.canSettings[idx].fdMode)
+        {
+            Logger::console("CAN%i is not in FD mode. Set CANFDMODE%i=1 first.", idx, idx);
+        }
+        else
+        {
+            if (newValue < 1) newValue = 1;
+            if (newValue > 100) newValue = 100;
+            sendFDTestBursts(idx, newValue);
+        }
     } else if (cmdString == String("MARK")) { //just ascii based for now
         if (!settings.useBinarySerialComm) Logger::console("Mark: %s", newString);
     } else if (cmdString == String("BINSERIAL")) {
@@ -450,6 +472,35 @@ void SerialConsole::handleConfigCmd()
         nvPrefs.end();
     }
 } 
+
+//FDTEST%i=N - one burst is a frame of every valid CAN FD length (0-8, 12, 16, 20, 24, 32, 48, 64 bytes)
+//on standard ID 0x100 + length, plus a 64 byte frame on extended ID 0x18DA0040. Data byte n is always n,
+//so a receiver can check that nothing is shifted or truncated.
+void SerialConsole::sendFDTestBursts(int bus, int bursts)
+{
+    static const uint8_t fdLengths[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20, 24, 32, 48, 64};
+    CAN_FRAME_FD frame;
+
+    Logger::console("Sending %i FD test burst(s) on CAN%i", bursts, bus);
+    for (int b = 0; b < bursts; b++)
+    {
+        for (uint8_t len : fdLengths)
+        {
+            frame.id = 0x100 + len;
+            frame.extended = 0;
+            frame.fdMode = 1;
+            frame.rrs = 0;
+            frame.length = len;
+            for (int n = 0; n < 64; n++) frame.data.uint8[n] = n;
+            canManager.sendFrame(canBuses[bus], frame);
+        }
+        frame.id = 0x18DA0040;
+        frame.extended = 1;
+        frame.length = 64;
+        canManager.sendFrame(canBuses[bus], frame);
+        delay(10); //let the TX queue drain between bursts
+    }
+}
 
 //CAN0FILTER%i=%%i,%%i,%%i,%%i (ID, Mask, Extended, Enabled)", i);
 bool SerialConsole::handleFilterSet(uint8_t bus, uint8_t filter, char *values)
