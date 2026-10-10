@@ -253,12 +253,12 @@ void SerialConsole::handleConfigCmd()
         if (idx > (SysSettings.numBuses - 1)) idx = SysSettings.numBuses - 1;
         if (canBuses[idx]->supportsFDMode())
         {
-            if (newValue > 499999 && newValue <= 8000000) {
+            if (newValue >= 1000000 && newValue <= 8000000) { //the MCP2517FD library rejects data rates below 1M
                 Logger::console("Setting CAN%i FD Rate to %i", idx, newValue);
                 settings.canSettings[idx].fdSpeed = newValue;
                 if (settings.canSettings[idx].fdMode) canManager.restartBus(idx);
                 writeEEPROM = true;
-            } else Logger::console("Invalid baud rate! Enter a value 500000 - 8000000");
+            } else Logger::console("Invalid baud rate! Enter a value 1000000 - 8000000");
         } 
     } else if (cmdString.startsWith("CANFDMODE")) {
         int idx = cmdString[cmdString.length() - 1] - '0';

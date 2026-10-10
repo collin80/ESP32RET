@@ -203,6 +203,14 @@ void CANManager::printStats(bool reset)
                           (diag1 & (1ul << 24)) ? " DBIT0" : "", (diag1 & (1ul << 25)) ? " DBIT1" : "",
                           (diag1 & (1ul << 27)) ? " DFORM" : "", (diag1 & (1ul << 28)) ? " DSTUF" : "",
                           (diag1 & (1ul << 29)) ? " DCRC" : "");
+#ifdef MCP2517FD_HAS_STATS
+            Serial.printf("  library: rx frames %u, rx queue full %u, RX overflow %u | tx loaded %u, tx queue full %u, TX err %u, TX dropped %u\n",
+                          mcp->statRxFrames, mcp->statRxQueueFull, mcp->statRxOverflows,
+                          mcp->statTxLoaded, mcp->statTxQueueFull, mcp->statTxErrors, mcp->statTxDropped);
+            Serial.printf("  library: bus err %u, invalid msg %u, resets %u, TX re-arms %u, diag seen 0x%08X\n",
+                          mcp->statBusErrors, mcp->statInvalidMsgs, mcp->statResets, mcp->statTxRearms,
+                          mcp->getCachedDiag1());
+#endif
         }
         if (reset)
         {
