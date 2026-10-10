@@ -324,6 +324,12 @@ void onOTAProgress(uint32_t progress, size_t fullSize)
 
 void WiFiManager::attemptOTAUpdate()
 {
+    if (otaHost[0] == 0)
+    {
+        Serial.println("\n\nNo OTA update server is configured for this board type. Flash over USB instead.");
+        return;
+    }
+
     if (WiFi.status() == WL_CONNECTED)
     {
         Serial.println("\n\n");

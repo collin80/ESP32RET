@@ -71,7 +71,7 @@ void SerialConsole::printMenu()
     Serial.println("Config Commands (enter command=newvalue). Current values shown in parenthesis:");
     Serial.println();
 
-    Logger::console("SYSTYPE=%i - Set board type (0=Macchina A0, 1=EVTV ESP32 Board 2=Macchina A5)", settings.systemType);
+    Logger::console("SYSTYPE=%i - Set board type (0=Macchina A0, 1=EVTV ESP32 Board 2=Macchina A5, 3=EVTV ESP32-S3, 4=LilyGO T-2CAN-FD)", settings.systemType);
     Logger::console("LOGLEVEL=%i - set log level (0=debug, 1=info, 2=warn, 3=error, 4=off)", settings.logLevel);
     Serial.println();
 
@@ -374,11 +374,12 @@ void SerialConsole::handleConfigCmd()
         writeEEPROM = true;
     } else if (cmdString == String("SYSTYPE")) {
         if (newValue < 0) newValue = 0;
-        if (newValue > 3) newValue = 3;
+        if (newValue > 4) newValue = 4;
         if (newValue == 0) Logger::console("Setting board type to Macchina A0");
         if (newValue == 1) Logger::console("Setting board type to EVTV ESP32");
         if (newValue == 2) Logger::console("Setting board type to Macchina 5CAN");
         if (newValue == 3) Logger::console("Setting board type to EVTV ESP32-S3");
+        if (newValue == 4) Logger::console("Setting board type to LilyGO T-2CAN-FD");
         settings.systemType = newValue;
         writeEEPROM = true;
     } else if (cmdString == String("LOGLEVEL")) {
