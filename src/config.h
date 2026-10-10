@@ -45,6 +45,12 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //Probably don't set this over 2048 as the default packet size for wifi is 2312 including all overhead.
 #define WIFI_BUFF_SIZE      2048
 
+//Worst case bytes one frame can add to an output buffer: a 64 byte CAN FD frame in text mode is ~215
+//characters (binary GVRET is 76). Reading stops, and the buffer is flushed, once less than this is free,
+//so a frame always fits. The old fixed margins (read until 80 free, flush at 40 free) let text-mode FD
+//frames overrun the buffer, and the early flush never triggered, so output was limited by the 20 ms timer.
+#define MAX_FRAME_OUT_BYTES 256
+
 //Number of microseconds between hard flushes of the serial buffer (if not in wifi mode) or the wifi buffer (if in wifi mode)
 //This keeps the latency more consistent. Otherwise the buffer could partially fill and never send.
 #define SER_BUFF_FLUSH_INTERVAL 20000

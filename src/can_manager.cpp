@@ -203,7 +203,7 @@ void CANManager::loop()
     {
         if (!canBuses[i]) continue;
         if (!settings.canSettings[i].enabled) continue;
-        while ( (canBuses[i]->available() > 0) && (maxLength < (WIFI_BUFF_SIZE - 80)))
+        while ( (canBuses[i]->available() > 0) && (maxLength < (WIFI_BUFF_SIZE - MAX_FRAME_OUT_BYTES)))
         {
             if (settings.canSettings[i].fdMode == 0)
             {
