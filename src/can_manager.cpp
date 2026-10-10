@@ -36,52 +36,59 @@ CANManager::CANManager()
     sendToConsole = true;
 }
 
+//(Re)start one bus from settings.canSettings[i]. Buses with fdMode set are started in FD mode, so every
+//place that applies new settings (startup, GVRET SETUP_CANBUS, console) keeps an FD bus in FD mode.
+void CANManager::restartBus(int i)
+{
+    if ((i < 0) || (i >= SysSettings.numBuses) || !canBuses[i]) return;
+    //status text must not be mixed into the binary GVRET stream
+    bool verbose = !settings.useBinarySerialComm;
+
+    if (!settings.canSettings[i].enabled)
+    {
+        canBuses[i]->disable();
+        return;
+    }
+
+    if ((settings.canSettings[i].fdMode == 0) || !canBuses[i]->supportsFDMode())
+    {
+        canBuses[i]->begin(settings.canSettings[i].nomSpeed);
+        if (verbose) Serial.printf("Enabled CAN%u with speed %u\n", i, settings.canSettings[i].nomSpeed);
+        if ( (i == 0) && (settings.systemType == 2) )
+        {
+          digitalWrite(SW_EN, HIGH); //MUST be HIGH to use CAN0 channel
+          if (verbose) Serial.println("Enabling SWCAN Mode");
+        }
+        if ( (i == 1) && (settings.systemType == 2) )
+        {
+          digitalWrite(SW_EN, LOW); //MUST be LOW to use CAN1 channel
+          if (verbose) Serial.println("Enabling CAN1 will force CAN0 off.");
+        }
+        //no need to do this for the built-in CAN
+        if (i > 0) canBuses[i]->enable();
+    }
+    else
+    {
+        canBuses[i]->beginFD(settings.canSettings[i].nomSpeed, settings.canSettings[i].fdSpeed);
+        if (verbose) Serial.printf("Enabled CAN%u In FD Mode With Nominal Speed %u and Data Speed %u\n",
+                                   i, settings.canSettings[i].nomSpeed, settings.canSettings[i].fdSpeed);
+        canBuses[i]->enable();
+    }
+
+    if (settings.canSettings[i].listenOnly)
+    {
+        canBuses[i]->setListenOnlyMode(true);
+    }
+    else
+    {
+        canBuses[i]->setListenOnlyMode(false);
+    }
+    canBuses[i]->watchFor();
+}
+
 void CANManager::setup()
 {
-    for (int i = 0; i < SysSettings.numBuses; i++)
-    {
-        if (settings.canSettings[i].enabled)
-        {
-            if ((settings.canSettings[i].fdMode == 0) || !canBuses[i]->supportsFDMode())
-            {
-                canBuses[i]->begin(settings.canSettings[i].nomSpeed);
-                Serial.printf("Enabled CAN%u with speed %u\n", i, settings.canSettings[i].nomSpeed);
-                if ( (i == 0) && (settings.systemType == 2) )
-                {
-                  digitalWrite(SW_EN, HIGH); //MUST be HIGH to use CAN0 channel
-                  Serial.println("Enabling SWCAN Mode");
-                }
-                if ( (i == 1) && (settings.systemType == 2) )
-                {
-                  digitalWrite(SW_EN, LOW); //MUST be LOW to use CAN1 channel
-                  Serial.println("Enabling CAN1 will force CAN0 off.");
-                }
-                //no need to do this for the built-in CAN
-                if (i > 0) canBuses[i]->enable();
-            }
-            else
-            {
-                canBuses[i]->beginFD(settings.canSettings[i].nomSpeed, settings.canSettings[i].fdSpeed);
-                Serial.printf("Enabled CAN1 In FD Mode With Nominal Speed %u and Data Speed %u", 
-                                settings.canSettings[i].nomSpeed, settings.canSettings[i].fdSpeed);
-                canBuses[i]->enable();
-            }
-
-            if (settings.canSettings[i].listenOnly) 
-            {
-                canBuses[i]->setListenOnlyMode(true);
-            }
-            else
-            {
-                canBuses[i]->setListenOnlyMode(false);
-            }
-            canBuses[i]->watchFor();
-        } 
-        else
-        {
-            canBuses[i]->disable();
-        }
-    }
+    for (int i = 0; i < SysSettings.numBuses; i++) restartBus(i);
 
     if (settings.systemType == 2) //Macchina 5-CAN Board
     {

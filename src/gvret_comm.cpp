@@ -287,14 +287,7 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
                     settings.canSettings[0].enabled = false;
                 }
 
-                if (settings.canSettings[0].enabled)
-                {
-                    canBuses[0]->begin(settings.canSettings[0].nomSpeed, 255);
-                    if (settings.canSettings[0].listenOnly) canBuses[0]->setListenOnlyMode(true);
-                    else canBuses[0]->setListenOnlyMode(false);
-                    canBuses[0]->watchFor();
-                }
-                else canBuses[0]->disable();
+                canManager.restartBus(0); //keeps the bus in FD mode if CANFDMODE0=1
                 break;
             case 4:
                 build_int = in_byte;
@@ -339,14 +332,8 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
                     settings.canSettings[1].enabled = false;
                 }
 
-                if (settings.canSettings[1].enabled)
-                {
-                    canBuses[1]->begin(settings.canSettings[1].nomSpeed, 255);
-                    if (settings.canSettings[1].listenOnly) canBuses[1]->setListenOnlyMode(true);
-                    else canBuses[1]->setListenOnlyMode(false);
-                    canBuses[1]->watchFor();
-                }
-                else canBuses[1]->disable();
+                //was begin() (classic) even with CANFDMODE1=1, which made the MCP2518FD error-frame FD traffic
+                canManager.restartBus(1);
 
                 state = IDLE;
                 //now, write out the new canbus settings to EEPROM

@@ -23,6 +23,7 @@ public:
     void displayFrame(CAN_FRAME_FD &frame, int whichBus);
     void loop();
     void setup();
+    void restartBus(int i);
     void setSendToConsole(bool state) { sendToConsole = state; }
 
 private:
