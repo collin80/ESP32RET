@@ -176,6 +176,28 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
             step = 0;
             buff[0] = 0xF1;
             break;
+        //CAN FD settings. Reply: number of buses, then per bus: flags (bit 0 = bus can do CAN FD,
+        //bit 1 = FD mode on), FD data rate[4] LSB first
+        case PROTO_GET_FD:
+            transmitBuffer[transmitBufferLength++] = 0xF1;
+            transmitBuffer[transmitBufferLength++] = PROTO_GET_FD;
+            transmitBuffer[transmitBufferLength++] = SysSettings.numBuses;
+            for (int i = 0; i < SysSettings.numBuses; i++)
+            {
+                bool capable = canBuses[i] && canBuses[i]->supportsFDMode();
+                uint32_t rate = settings.canSettings[i].fdSpeed;
+                transmitBuffer[transmitBufferLength++] = (capable ? 0x01 : 0) | ((capable && settings.canSettings[i].fdMode) ? 0x02 : 0);
+                transmitBuffer[transmitBufferLength++] = rate & 0xFF;
+                transmitBuffer[transmitBufferLength++] = rate >> 8;
+                transmitBuffer[transmitBufferLength++] = rate >> 16;
+                transmitBuffer[transmitBufferLength++] = rate >> 24;
+            }
+            state = IDLE;
+            break;
+        case PROTO_SETUP_FD:
+            state = SETUP_FD;
+            step = 0;
+            break;
         }
         break;
     case BUILD_CAN_FRAME:
@@ -281,6 +303,45 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
         }
         step++;
         break;
+        //CAN FD settings from the host, opcode 21: bus, flags (bit 1 = FD mode on), FD data rate[4] LSB first
+        //(0 = keep the current rate). Not saved, like SETUP_CANBUS; the console's CANFDMODE/CANFDRATE save.
+        case SETUP_FD:
+            switch(step)
+            {
+            case 0:
+                out_bus = in_byte;
+                break;
+            case 1:
+                buff[1] = in_byte;
+                break;
+            case 2:
+                build_int = in_byte;
+                break;
+            case 3:
+                build_int |= in_byte << 8;
+                break;
+            case 4:
+                build_int |= in_byte << 16;
+                break;
+            case 5:
+                build_int |= (uint32_t)in_byte << 24;
+                state = IDLE;
+                if (out_bus < SysSettings.numBuses && canBuses[out_bus] && canBuses[out_bus]->supportsFDMode())
+                {
+                    bool newMode = (buff[1] & 0x02) != 0;
+                    uint32_t newRate = settings.canSettings[out_bus].fdSpeed;
+                    if (build_int >= 1000000 && build_int <= 8000000) newRate = build_int; //same limits as CANFDRATE
+                    if (newMode != (bool)settings.canSettings[out_bus].fdMode || newRate != settings.canSettings[out_bus].fdSpeed)
+                    {
+                        settings.canSettings[out_bus].fdMode = newMode;
+                        settings.canSettings[out_bus].fdSpeed = newRate;
+                        canManager.restartBus(out_bus);
+                    }
+                }
+                break;
+            }
+            step++;
+            break;
         case TIME_SYNC:
             state = IDLE;
             break;
