@@ -5,7 +5,7 @@ name: Build T-2CAN-FD firmware
 on:
   push:
     branches:
-      - "t2canfd-board"
+      - "master"
   pull_request:
   workflow_dispatch:
 
