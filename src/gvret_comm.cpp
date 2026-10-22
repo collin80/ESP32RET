@@ -41,6 +41,10 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
     case GET_COMMAND:
         switch(in_byte)
         {
+        case PROTO_BUILD_FD_FRAME:
+            state = BUILD_FD_FRAME;
+            step = 0;
+            break;
         case PROTO_BUILD_CAN_FRAME:
             state = BUILD_CAN_FRAME;
             buff[0] = 0xF1;
@@ -172,6 +176,28 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
             step = 0;
             buff[0] = 0xF1;
             break;
+        //CAN FD settings. Reply: number of buses, then per bus: flags (bit 0 = bus can do CAN FD,
+        //bit 1 = FD mode on), FD data rate[4] LSB first
+        case PROTO_GET_FD:
+            transmitBuffer[transmitBufferLength++] = 0xF1;
+            transmitBuffer[transmitBufferLength++] = PROTO_GET_FD;
+            transmitBuffer[transmitBufferLength++] = SysSettings.numBuses;
+            for (int i = 0; i < SysSettings.numBuses; i++)
+            {
+                bool capable = canBuses[i] && canBuses[i]->supportsFDMode();
+                uint32_t rate = settings.canSettings[i].fdSpeed;
+                transmitBuffer[transmitBufferLength++] = (capable ? 0x01 : 0) | ((capable && settings.canSettings[i].fdMode) ? 0x02 : 0);
+                transmitBuffer[transmitBufferLength++] = rate & 0xFF;
+                transmitBuffer[transmitBufferLength++] = rate >> 8;
+                transmitBuffer[transmitBufferLength++] = rate >> 16;
+                transmitBuffer[transmitBufferLength++] = rate >> 24;
+            }
+            state = IDLE;
+            break;
+        case PROTO_SETUP_FD:
+            state = SETUP_FD;
+            step = 0;
+            break;
         }
         break;
     case BUILD_CAN_FRAME:
@@ -216,12 +242,106 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
                 //this would be the checksum byte. Compute and compare.
                 //temp8 = checksumCalc(buff, step);
                 build_out_frame.rtr = 0;
-                if (out_bus < NUM_BUSES) canManager.sendFrame(canBuses[out_bus], build_out_frame);
+                if (out_bus < NUM_BUSES && canBuses[out_bus]) canManager.sendFrame(canBuses[out_bus], build_out_frame);
             }
             break;
         }
         step++;
         break;
+    //CAN FD frame from the host, opcode 20: id[4] (bit 31 = extended), bus, length (bits 0-6) with BRS in
+    //bit 7, data[length], trailing byte. Same layout as opcode 0. The MCP2517FD library always sends FD
+    //frames with BRS set, so the BRS bit is accepted but not used yet.
+    case BUILD_FD_FRAME:
+        switch(step)
+        {
+        case 0:
+            build_out_fd_frame.id = in_byte;
+            break;
+        case 1:
+            build_out_fd_frame.id |= in_byte << 8;
+            break;
+        case 2:
+            build_out_fd_frame.id |= in_byte << 16;
+            break;
+        case 3:
+            build_out_fd_frame.id |= in_byte << 24;
+            if(build_out_fd_frame.id & 1ul << 31)
+            {
+                build_out_fd_frame.id &= 0x7FFFFFFF;
+                build_out_fd_frame.extended = true;
+            } else build_out_fd_frame.extended = false;
+            break;
+        case 4:
+            out_bus = in_byte & 3;
+            break;
+        case 5:
+            build_out_fd_frame.length = in_byte & 0x7F;
+            if (build_out_fd_frame.length > 64) //not a CAN FD length: drop it and resync on the next 0xF1
+            {
+                state = IDLE;
+                return;
+            }
+            break;
+        default:
+            if(step < build_out_fd_frame.length + 6)
+            {
+                build_out_fd_frame.data.uint8[step - 6] = in_byte;
+            }
+            else
+            {
+                state = IDLE;
+                //trailing byte: send it if the bus can carry CAN FD right now
+                build_out_fd_frame.fdMode = 1;
+                build_out_fd_frame.rrs = 0;
+                if (out_bus < NUM_BUSES && canBuses[out_bus] && canBuses[out_bus]->supportsFDMode() &&
+                    settings.canSettings[out_bus].fdMode)
+                {
+                    canManager.sendFrame(canBuses[out_bus], build_out_fd_frame);
+                }
+            }
+            break;
+        }
+        step++;
+        break;
+        //CAN FD settings from the host, opcode 21: bus, flags (bit 1 = FD mode on), FD data rate[4] LSB first
+        //(0 = keep the current rate). Not saved, like SETUP_CANBUS; the console's CANFDMODE/CANFDRATE save.
+        case SETUP_FD:
+            switch(step)
+            {
+            case 0:
+                out_bus = in_byte;
+                break;
+            case 1:
+                buff[1] = in_byte;
+                break;
+            case 2:
+                build_int = in_byte;
+                break;
+            case 3:
+                build_int |= in_byte << 8;
+                break;
+            case 4:
+                build_int |= in_byte << 16;
+                break;
+            case 5:
+                build_int |= (uint32_t)in_byte << 24;
+                state = IDLE;
+                if (out_bus < SysSettings.numBuses && canBuses[out_bus] && canBuses[out_bus]->supportsFDMode())
+                {
+                    bool newMode = (buff[1] & 0x02) != 0;
+                    uint32_t newRate = settings.canSettings[out_bus].fdSpeed;
+                    if (build_int >= 1000000 && build_int <= 8000000) newRate = build_int; //same limits as CANFDRATE
+                    if (newMode != (bool)settings.canSettings[out_bus].fdMode || newRate != settings.canSettings[out_bus].fdSpeed)
+                    {
+                        settings.canSettings[out_bus].fdMode = newMode;
+                        settings.canSettings[out_bus].fdSpeed = newRate;
+                        canManager.restartBus(out_bus);
+                    }
+                }
+                break;
+            }
+            step++;
+            break;
         case TIME_SYNC:
             state = IDLE;
             break;
@@ -287,14 +407,7 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
                     settings.canSettings[0].enabled = false;
                 }
 
-                if (settings.canSettings[0].enabled)
-                {
-                    canBuses[0]->begin(settings.canSettings[0].nomSpeed, 255);
-                    if (settings.canSettings[0].listenOnly) canBuses[0]->setListenOnlyMode(true);
-                    else canBuses[0]->setListenOnlyMode(false);
-                    canBuses[0]->watchFor();
-                }
-                else canBuses[0]->disable();
+                canManager.restartBus(0); //keeps the bus in FD mode if CANFDMODE0=1
                 break;
             case 4:
                 build_int = in_byte;
@@ -339,14 +452,8 @@ void GVRET_Comm_Handler::processIncomingByte(uint8_t in_byte)
                     settings.canSettings[1].enabled = false;
                 }
 
-                if (settings.canSettings[1].enabled)
-                {
-                    canBuses[1]->begin(settings.canSettings[1].nomSpeed, 255);
-                    if (settings.canSettings[1].listenOnly) canBuses[1]->setListenOnlyMode(true);
-                    else canBuses[1]->setListenOnlyMode(false);
-                    canBuses[1]->watchFor();
-                }
-                else canBuses[1]->disable();
+                //was begin() (classic) even with CANFDMODE1=1, which made the MCP2518FD error-frame FD traffic
+                canManager.restartBus(1);
 
                 state = IDLE;
                 //now, write out the new canbus settings to EEPROM

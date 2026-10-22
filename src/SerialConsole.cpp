@@ -236,11 +236,9 @@ void SerialConsole::handleConfigCmd()
         {
             Logger::console("Setting CAN%i Nominal Speed to %i", idx, newValue);
             settings.canSettings[idx].nomSpeed = newValue;
-            if (settings.canSettings[idx].enabled) 
-            {
-                if (settings.canSettings[idx].fdMode)
-                    canBuses[idx]->begin(settings.canSettings[idx].nomSpeed, settings.canSettings[idx].fdSpeed);
-            }
+            //apply now (previously FD buses got begin(nom, fdSpeed), passing the FD rate as an enable pin,
+            //and classic buses only changed after a reset)
+            canManager.restartBus(idx);
             writeEEPROM = true;
         } 
         else Logger::console("Invalid baud rate! Enter a value 32000 - 1000000");
@@ -253,11 +251,7 @@ void SerialConsole::handleConfigCmd()
             if (newValue > 499999 && newValue <= 8000000) {
                 Logger::console("Setting CAN%i FD Rate to %i", idx, newValue);
                 settings.canSettings[idx].fdSpeed = newValue;
-                if (settings.canSettings[idx].enabled) 
-                {
-                    if (settings.canSettings[idx].fdMode)
-                        canBuses[idx]->beginFD(settings.canSettings[idx].nomSpeed, settings.canSettings[idx].fdSpeed);
-                }
+                if (settings.canSettings[idx].fdMode) canManager.restartBus(idx);
                 writeEEPROM = true;
             } else Logger::console("Invalid baud rate! Enter a value 500000 - 8000000");
         } 
@@ -270,10 +264,7 @@ void SerialConsole::handleConfigCmd()
             if (newValue >= 0 && newValue <= 1) {
                 Logger::console("Setting CAN%i FD Mode to %i", idx, newValue);
                 settings.canSettings[idx].fdMode = newValue;
-                    if (settings.canSettings[idx].fdMode)
-                        canBuses[idx]->beginFD(settings.canSettings[idx].nomSpeed, settings.canSettings[idx].fdSpeed);
-                    else
-                        canBuses[idx]->begin(settings.canSettings[idx].nomSpeed, 255);
+                canManager.restartBus(idx);
                 writeEEPROM = true;
             } else Logger::console("Invalid setting! Enter a value 0 - 1");
         }

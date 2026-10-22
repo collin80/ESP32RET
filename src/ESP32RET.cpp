@@ -126,7 +126,7 @@ void loadSettings()
         digitalWrite(13, LOW);
         delay(100);
         FastLED.addLeds<LED_TYPE, A0_LED_PIN, COLOR_ORDER>(leds, A0_NUM_LEDS).setCorrection( TypicalLEDStrip );
-        FastLED.setBrightness(  BRIGHTNESS );
+        FastLED.setBrightness(  LED_BRIGHTNESS );
         leds[0] = CRGB::Red;
         FastLED.show();
         pinMode(21, OUTPUT);
@@ -190,7 +190,7 @@ void loadSettings()
 
 
         FastLED.addLeds<LED_TYPE, A5_LED_PIN, COLOR_ORDER>(leds, A5_NUM_LEDS).setCorrection( TypicalLEDStrip );
-        FastLED.setBrightness(  BRIGHTNESS );
+        FastLED.setBrightness(  LED_BRIGHTNESS );
         //With the board facing up and looking at the USB end the LEDs are 0 1 2 (USB) 3
         //can test LEDs here for debugging but normally leave first three off and set connection to RED.
         //leds[0] = CRGB::White;
@@ -377,7 +377,7 @@ void loop()
     size_t maxLength = (wifiLength>serialLength) ? wifiLength : serialLength;
 
     //If the max time has passed or the buffer is almost filled then send buffered data out
-    if ((micros() - lastFlushMicros > SER_BUFF_FLUSH_INTERVAL) || (maxLength > (WIFI_BUFF_SIZE - 40)) ) 
+    if ((micros() - lastFlushMicros > SER_BUFF_FLUSH_INTERVAL) || (maxLength >= (WIFI_BUFF_SIZE - MAX_FRAME_OUT_BYTES)) )
     {
         lastFlushMicros = micros();
         if (serialLength > 0) 
