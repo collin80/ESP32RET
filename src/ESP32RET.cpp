@@ -98,6 +98,9 @@ void loadSettings()
 #ifdef CONFIG_IDF_TARGET_ESP32S3
     defaultVal = 3;
 #endif
+#ifdef BOARD_T2CANFD
+    defaultVal = 4;
+#endif
     settings.systemType = nvPrefs.getUChar("systype", defaultVal);
 
     if (settings.systemType == 0)
@@ -239,6 +242,39 @@ void loadSettings()
         strcpy(otaFilename, "/esp32s3ret.bin");
     }
 
+    if (settings.systemType == 4)
+    {
+        Logger::console("Running on LilyGO T-2CAN-FD");
+        //CAN0 = built-in TWAI, LilyGO "CAN B" connector (P1). Classic CAN only.
+        //CAN1 = MCP2518FD (40MHz xtal), LilyGO "CAN A" connector (P2). CAN FD capable.
+        //SPI is on the S3 default pins (SCK 12, MOSI 11, MISO 13) which the MCP2517FD library uses.
+        canBuses[0] = &CAN0;
+        canBuses[1] = &CAN1;
+        CAN0.setCANPins(GPIO_NUM_6, GPIO_NUM_7); //rx, tx
+        CAN1.setCSPin(10);
+        CAN1.setINTPin(8);
+        //The transceivers have no standby pin and MCP2518FD GPIO0 goes to ESP IO9, so XSTBY is not used.
+        SysSettings.LED_CANTX = 255; //no LEDs on this board
+        SysSettings.LED_CANRX = 255;
+        SysSettings.LED_LOGGING = 255;
+        SysSettings.LED_CONNECTION_STATUS = 255;
+        SysSettings.fancyLED = false;
+        SysSettings.logToggle = false;
+        SysSettings.txToggle = true;
+        SysSettings.rxToggle = true;
+        SysSettings.lawicelAutoPoll = false;
+        SysSettings.lawicelMode = false;
+        SysSettings.lawicellExtendedMode = false;
+        SysSettings.lawicelTimestamping = false;
+        SysSettings.numBuses = 2;
+        SysSettings.isWifiActive = false;
+        SysSettings.isWifiConnected = false;
+        strcpy(deviceName, T2CANFD_NAME);
+        //No OTA image is published for this board; keep the EVTV image from being flashed onto it
+        otaHost[0] = 0;
+        otaFilename[0] = 0;
+    }
+
     if (nvPrefs.getString("SSID", settings.SSID, 32) == 0)
     {
         strcpy(settings.SSID, deviceName);
@@ -265,7 +301,8 @@ void loadSettings()
         sprintf(buff, "can%i-listenonly", i);
         settings.canSettings[i].listenOnly = nvPrefs.getBool(buff, false);
         sprintf(buff, "can%i-fdspeed", i);
-        settings.canSettings[i].fdSpeed = nvPrefs.getUInt(buff, 5000000);
+        //T-2CAN-FD: TD501MCANFD transceivers are good for 5M; default to 2M to match the 500k/2M Zombie bench rate
+        settings.canSettings[i].fdSpeed = nvPrefs.getUInt(buff, (settings.systemType == 4) ? 2000000 : 5000000);
         sprintf(buff, "can%i-fdmode", i);
         settings.canSettings[i].fdMode = nvPrefs.getBool(buff, false);
     }
